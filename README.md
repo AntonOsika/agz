@@ -1,4 +1,4 @@
-# MCTS library 
+# MCTS things 
 
 ## AlphaGo Zero hack during AI Weekend in Stockholm
 
