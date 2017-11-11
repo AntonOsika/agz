@@ -13,11 +13,12 @@ import tqdm
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 16  # FIXME0
+N_SIMULATIONS = 160  # FIXME
 
 """
 
 TODO/fix:
+- The agent will think that it will be in and inifinte pass-turn loop. Fix this!
 - Implement a way to print the trees! (with n and q)
 - Fix that it get stuck on playing (0,0) on second move 
     (and assumes opponent will do the same) when illegal move -> pass turn
