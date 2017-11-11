@@ -4,15 +4,11 @@ import betago
 from betago.dataloader.goboard import GoBoard
 
 BOARD_SIZE = 9
-ACTION_SPACE = [9*9 + 1]
 C_PUCT = 1.0
 
 """
-Needs a state class that has lots of logic
 
 TODO/fix:
-- Implement State object that has action_space, etc
-- Implement step(state, action)
 - Evaluate pure MCTS on a simple problem
 - Render play with opponent
 - Render self play from history
@@ -24,69 +20,80 @@ TODO/fix:
 
 
 class GoState(GoBoard):
+    """
+    Wrapper of betago.
+    TODO: Possibly replace the state with numpy arrays for less memory consumption
+    """
 
     def __init__(self, board_size=BOARD_SIZE):
         super(GoBoard, self).__init__(board_size)
 
         self.game_over = False
         self.winner = None
-        self.action_space = list(range(board_size**2 + 1))
-        self.current_player = 1  # in (1, -1)
+        self.action_space = board_size**2 + 1
+        self.current_player = 'b'
 
         self.last_action = None
         self.last_action_2 = None
 
+        self.player_transition = {'b': 'w', 'w': 'b'}
+
     def step(self, action):
-        random_ordering = iter(np.random.permutation(len(self.action_space)))
+        random_ordering = iter(np.random.permutation(self.action_space))
+
+        pos = self._action_pos(action)
 
         # Find first legal move:
-        while not self.is_move_legal(self.current_player, action):
+        while pos and not self.is_move_legal(self.current_player, action):
             try:
-                action_index = next(random_ordering)
+                action = next(random_ordering)
             except:
                 raise Exception("No legal action.")
-            action = self.action_space[action_index]
+            pos = self._action_pos(action)
 
-        super(GoBoard, self).apply_move(action, self.current_player)
+        if pos:
+            super(GoBoard, self).apply_move(pos, self.current_player)
 
-        self.current_player = -self.current_player
-        self.check_state()
-        self.game_over = self._game_over()
-        self.winner =
+        self.current_player = self.player_transition[self.current_player]
+        self._new_state_checks()  # Updates self.game_over and self.winner
 
         self.last_action_2 = self.last_action
         self.last_action = action
 
+    def _action_pos(self, action):
+        if action == self.action_space - 1:  # pass turn
+            return None
+        else:
+            return (action // self.board_size, action % self.board_size)
+
     def _new_state_checks(self):
-        full_board = len(self.board) == self.board_size**2
-        double_pass = (self.last_action == len(self.action_space) - 1) and \
-                      (self.last_last_2 == self.last_action)
-        self.game_over = full_board or double_pass
+        """Checks if game is over and who won"""
+        board_is_full = len(self.board) == self.board_size**2
+        double_pass = (self.last_action == self.action_space - 1) and \
+                      (self.last_last_2 == self.action_space - 1)
+        self.game_over = board_is_full or double_pass
+
         if self.game_over:
             self.winner = self._compute_winner()
 
-    def _winner(self):
+    def _compute_winner(self):
         return 1
 
 
 def step(state, action):
-    """
-
+    """Functional stateless version of GoState.step()
     Args:
         state: GoState
+        action: integer
     """
-
     new_state = deepcopy.copy(state)
     new_state.step()
-    return state
+    return new_state
 
 def policy_network(state):
     """Returns distribution over all allowed actions"""
     # uniform placeholder:
-    return np.zeros_like(state.action_space) + 1.0/len(state.action_space)
-
-    all_action_probs = model.predict(state)
-    return all_action_probs[state.action_space]  # -> gets the probabilities that are allowed by indices
+    return np.zeros([state.action_space]) + 1.0/state.action_space
 
 def value_network(state):
     """Returns value of position for player 1."""
@@ -96,12 +103,6 @@ def value_network(state):
         state = play_action(state, action)
     return state.winner
 
-def play_action(state, action_space_index):
-    """Maps "action index" to action and plays it."""
-    action = state.action_space[action_space_index]
-    next_state = step(state, action)
-    return next_state
-
 class TreeStructure():
     def __init__(self, state, parent=None, action_that_led_here=None):
         self.children = {}  # map from action to node
@@ -109,14 +110,15 @@ class TreeStructure():
         self.parent = parent
         self.state = state
 
-        self.q = np.zeros_like(state.action_space)
-        self.n = np.zeros_like(state.action_space) + np.finfo(np.float).resolution
+        self.w = np.zeros([state.action_space])
+        self.n = np.zeros([state.action_space]) + np.finfo(np.float).resolution
         self.policy_result = policy_network(state)  # TODO: use a setter function
 
-        self.n_passed = 0
+        self.sum_n = 0
         state.action_that_led_here = action_that_led_here
 
         self.move_number = 0
+
         if parent:
             self.move_number = parent.move_number + 1
 
@@ -129,7 +131,7 @@ def sample(action_probs):
 def puct_distribution(node):
     """Puct equation"""
     # this shouldnt be a distribution but always maximised over?
-    return node.q/node.n + C_PUCT*node.policy_result*np.sqrt(node.n_passed)/(1 + node.n)
+    return node.w/node.n + C_PUCT*node.policy_result*np.sqrt(node.sum_n)/(1 + node.n)
 
 def puct_action(node):
     """Selects the next move."""
@@ -147,16 +149,15 @@ def backpropagate(node, value):
     def _increment(node, action, value):
         # Mirror value for odd states (?):
         # value *= 2*(node.move_number % 2 ) - 1
-        node.q[action] += value
+        node.w[action] += value
         node.n[action] += 1
-        node.n_passed += 1
+        node.sum_n += 1
 
     while node.parent:
         _increment(node.parent, node.action_that_led_here, value)
         node = node.parent
 
-
-def play_game(state=START_STATE, opponent=None):
+def play_game(state=GoState(), opponent=None):
     """
     Plays a game against itself or specified opponent.
 
@@ -164,7 +165,8 @@ def play_game(state=START_STATE, opponent=None):
     and so that `self.winner == 1` when the agent won.
     """
 
-    tree_root = TreeStructure(state)
+    # TODO: This will set .move_number = 0, should maybe track whose turn it is instead:
+    tree_root = TreeStructure(state)  
     game_history = []
 
     while not tree_root.state.game_over:
@@ -185,11 +187,11 @@ def play_game(state=START_STATE, opponent=None):
                 continue
             
             # Expand tree:
-            new_state = play_action(node.state, action)
+            new_state = step(node.state, action)
             node.children[action] = TreeStructure(new_state, node, action)
             node = node.children[action]
             
-            # Now happens in constructor (might want to parallellize):
+            # Now happens in constructor, probably should do it outside (and parallellize):
             # node.policy_result = policy_network(state)
             
             if new_state.game_over:
@@ -211,7 +213,5 @@ def play_game(state=START_STATE, opponent=None):
             tree_root = tree_root.children.get(action) or TreeStructure()
 
     return game_history, tree_root.state.winner
-
-    
 
 
