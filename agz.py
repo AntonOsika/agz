@@ -60,20 +60,20 @@ class GoState(GoBoard):
 
         # TODO: "test if valid" uses deepcopy and took too long (especially when doing rollouts)
         # Find first legal move:
-        while pos and not self.is_move_legal(self.current_player, pos):
-            try:
-                action = next(random_ordering)
-            except:
-                raise Exception("No legal action.")
-            pos = self._action_pos(action)
+        # while pos and not self.is_move_legal(self.current_player, pos):
+        #     try:
+        #         action = next(random_ordering)
+        #     except:
+        #         raise Exception("No legal action.")
+        #     pos = self._action_pos(action)
 
         # If illegal move: Will pass
         logger.debug("Did action {} in:\n{}".format(pos, self))
 
         # TODO: This should work ok!
-        # if pos and not self.is_move_legal(self.current_player, pos):
-        #     pos = None
-        #     logger.debug("Which was not allowed")
+        if pos and not self.is_move_legal(self.current_player, pos):
+            pos = None
+            logger.debug("Which was not allowed")
 
         if pos:
             super(GoState, self).apply_move(self.current_player, pos)
@@ -150,7 +150,7 @@ def value_network_rollout(state):
         t1 - t0, time.time() - t1, counter))
     return state.winner
 
-value_network = value_network_counter
+value_network = value_network_rollout
 
 
 class TreeStructure():
