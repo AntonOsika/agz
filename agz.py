@@ -132,9 +132,8 @@ def play_game(state=START_STATE, opponent=None):
 
         if opponent:
             game_history.append([tree_root.state, tree_root.n])
-            action = action_to_play(node)
-            tree_root = tree_root.children[action]
-
+            action = opponent(state)
+            tree_root = tree_root.children.get(action) or TreeStructure()
 
     return game_history, tree_root.state.winner
 
