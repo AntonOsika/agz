@@ -1,10 +1,18 @@
+import copy
+
 import numpy as np
 
 import betago
 from betago.dataloader.goboard import GoBoard
+from betago.scoring import evaluate_territory
+
+import tqdm
+
+
 
 BOARD_SIZE = 9
 C_PUCT = 1.0
+N_SIMULATIONS = 10
 
 """
 
@@ -26,7 +34,7 @@ class GoState(GoBoard):
     """
 
     def __init__(self, board_size=BOARD_SIZE):
-        super(GoBoard, self).__init__(board_size)
+        super(GoState, self).__init__(board_size)
 
         self.game_over = False
         self.winner = None
@@ -44,7 +52,8 @@ class GoState(GoBoard):
         pos = self._action_pos(action)
 
         # Find first legal move:
-        while pos and not self.is_move_legal(self.current_player, action):
+        # FIXME: Maybe we should not sample "pass turn"
+        while pos and not self.is_move_legal(self.current_player, pos):
             try:
                 action = next(random_ordering)
             except:
@@ -52,7 +61,7 @@ class GoState(GoBoard):
             pos = self._action_pos(action)
 
         if pos:
-            super(GoBoard, self).apply_move(pos, self.current_player)
+            super(GoState, self).apply_move(self.current_player, pos)
 
         self.current_player = self.player_transition[self.current_player]
         self._new_state_checks()  # Updates self.game_over and self.winner
@@ -70,15 +79,16 @@ class GoState(GoBoard):
         """Checks if game is over and who won"""
         board_is_full = len(self.board) == self.board_size**2
         double_pass = (self.last_action == self.action_space - 1) and \
-                      (self.last_last_2 == self.action_space - 1)
+                      (self.last_action_2 == self.action_space - 1)
         self.game_over = board_is_full or double_pass
 
         if self.game_over:
             self.winner = self._compute_winner()
 
     def _compute_winner(self):
-        return 1
-
+        counts = evaluate_territory(self)
+        black_won = counts.num_black_stones + counts.num_black_territory > counts.num_white_stones + counts.num_white_territory
+        return 2*black_won - 1
 
 def step(state, action):
     """Functional stateless version of GoState.step()
@@ -86,8 +96,8 @@ def step(state, action):
         state: GoState
         action: integer
     """
-    new_state = deepcopy.copy(state)
-    new_state.step()
+    new_state = copy.deepcopy(state)
+    new_state.step(action)
     return new_state
 
 def policy_network(state):
@@ -100,11 +110,12 @@ def value_network(state):
     # simple rollout placeholder:
     while not state.game_over:
         action = sample(policy_network(state))
-        state = play_action(state, action)
+        state = step(state, action)
     return state.winner
 
 class TreeStructure():
     def __init__(self, state, parent=None, action_that_led_here=None):
+
         self.children = {}  # map from action to node
 
         self.parent = parent
@@ -115,7 +126,7 @@ class TreeStructure():
         self.policy_result = policy_network(state)  # TODO: use a setter function
 
         self.sum_n = 0
-        state.action_that_led_here = action_that_led_here
+        self.action_that_led_here = action_that_led_here
 
         self.move_number = 0
 
@@ -171,7 +182,7 @@ def play_game(state=GoState(), opponent=None):
 
     while not tree_root.state.game_over:
 
-        for i in xrange(1600):
+        for i in tqdm.tqdm(range(N_SIMULATIONS)):
             node = tree_root
             # Select action from "PUCT/UCB1 equation" in paper.
             action = puct_action(node)
@@ -200,6 +211,7 @@ def play_game(state=GoState(), opponent=None):
                 value = value_network(state)
             
             backpropagate(node, value)
+        return  # FIXME
 
         # Store the state and distribution before we prune the tree:
         game_history.append([tree_root.state, tree_root.n/tree_root.n.sum()])
@@ -214,4 +226,12 @@ def play_game(state=GoState(), opponent=None):
 
     return game_history, tree_root.state.winner
 
+def human_opponent(state):
+    print(state)
+    inp = input("What is your move?")
+    pos = [int(x) for x in inp.split()]
+    print(state)
+    return pos
 
+if __name__ == "__main__":
+    play_game(GoState(), human_opponent)
