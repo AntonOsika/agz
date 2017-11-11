@@ -3,6 +3,7 @@ import copy
 import numpy as np
 
 import betago
+import time
 from betago.dataloader.goboard import GoBoard
 from betago.scoring import evaluate_territory
 
@@ -10,21 +11,26 @@ import tqdm
 
 
 
-BOARD_SIZE = 9
+BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 10
+N_SIMULATIONS = 16  # FIXME0
 
 """
 
 TODO/fix:
-- Evaluate pure MCTS on a simple problem
-- Render play with opponent
+- Implement a way to print the trees! (with n and q)
+- Fix that it get stuck on playing (0,0) on second move 
+    (and assumes opponent will do the same) when illegal move -> pass turn
 - Render self play from history
 - Implement NN, and training NN
 - make networks into a class
-- Compute winner from board
 
 """
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 
 class GoState(GoBoard):
@@ -39,7 +45,7 @@ class GoState(GoBoard):
         self.game_over = False
         self.winner = None
         self.action_space = board_size**2 + 1
-        self.current_player = 'b'
+        self.current_player = 'b'  # TODO represent this with (1, -1) is faster
 
         self.last_action = None
         self.last_action_2 = None
@@ -51,14 +57,22 @@ class GoState(GoBoard):
 
         pos = self._action_pos(action)
 
+        # TODO: "test if valid" uses deepcopy and took too long (especially when doing rollouts)
         # Find first legal move:
-        # FIXME: Maybe we should not sample "pass turn"
         while pos and not self.is_move_legal(self.current_player, pos):
             try:
                 action = next(random_ordering)
             except:
                 raise Exception("No legal action.")
             pos = self._action_pos(action)
+
+        # If illegal move: Will pass
+        logger.debug("Did action {} in:\n{}".format(pos, self))
+
+        # TODO: This should work ok!
+        # if pos and not self.is_move_legal(self.current_player, pos):
+        #     pos = None
+        #     logger.debug("Which was not allowed")
 
         if pos:
             super(GoState, self).apply_move(self.current_player, pos)
@@ -71,6 +85,7 @@ class GoState(GoBoard):
 
     def _action_pos(self, action):
         if action == self.action_space - 1:  # pass turn
+
             return None
         else:
             return (action // self.board_size, action % self.board_size)
@@ -96,8 +111,11 @@ def step(state, action):
         state: GoState
         action: integer
     """
+    t0 = time.time()
     new_state = copy.deepcopy(state)
+    logger.debug("took {} to deepcopy \n{}".format(time.time()-t0, state) )
     new_state.step(action)
+    logger.debug(new_state)
     return new_state
 
 def policy_network(state):
@@ -105,13 +123,34 @@ def policy_network(state):
     # uniform placeholder:
     return np.zeros([state.action_space]) + 1.0/state.action_space
 
-def value_network(state):
+def value_network_counter(state):
+    black_stones = 0
+    white_stones = 0
+    for x in state.board.values():
+        if x == 'b':
+            black_stones += 1
+        if x == 'w':
+            white_stones += 1
+    value = np.tanh((black_stones - white_stones)/3.0)
+    return value
+
+def value_network_rollout(state):
     """Returns value of position for player 1."""
     # simple rollout placeholder:
+    t0 = time.time()
+    state = copy.deepcopy(state)
+    t1 = time.time()
+    counter = 0
     while not state.game_over:
         action = sample(policy_network(state))
-        state = step(state, action)
+        state.step(action)
+        counter += 1
+    logger.debug("took {} + {} to copy + roll out for {}:".format(
+        t1 - t0, time.time() - t1, counter))
     return state.winner
+
+value_network = value_network_counter
+
 
 class TreeStructure():
     def __init__(self, state, parent=None, action_that_led_here=None):
@@ -150,6 +189,8 @@ def puct_action(node):
 
 def action_to_play(node, opponent=None):
     """Samples a move if beginning of self play game."""
+    logger.debug(node.n)
+    logger.debug(node.w)
     if node.move_number < 30 and opponent is None:
         return sample(node.n)
     else:
@@ -159,7 +200,7 @@ def backpropagate(node, value):
 
     def _increment(node, action, value):
         # Mirror value for odd states (?):
-        # value *= 2*(node.move_number % 2 ) - 1
+        value *= 2*(node.move_number % 2 ) - 1
         node.w[action] += value
         node.n[action] += 1
         node.sum_n += 1
@@ -182,7 +223,8 @@ def play_game(state=GoState(), opponent=None):
 
     while not tree_root.state.game_over:
 
-        for i in tqdm.tqdm(range(N_SIMULATIONS)):
+        # for i in tqdm.tqdm(range(N_SIMULATIONS)):
+        for i in range(N_SIMULATIONS):
             node = tree_root
             # Select action from "PUCT/UCB1 equation" in paper.
             action = puct_action(node)
@@ -211,27 +253,37 @@ def play_game(state=GoState(), opponent=None):
                 value = value_network(state)
             
             backpropagate(node, value)
-        return  # FIXME
 
         # Store the state and distribution before we prune the tree:
         game_history.append([tree_root.state, tree_root.n/tree_root.n.sum()])
 
-        action = action_to_play(tree_root, opponent)
+        action = action_to_play(tree_root, bool(opponent))
         tree_root = tree_root.children[action]
+        tree_root.parent = None
 
         if opponent:
             game_history.append([tree_root.state, tree_root.n])
-            action = opponent(state)
-            tree_root = tree_root.children.get(action) or TreeStructure()
+            action = opponent(tree_root.state)
+            if action in tree_root.children:
+                tree_root = tree_root.children[action]
+            else:
+                new_state = step(tree_root.state, action)
+                tree_root = TreeStructure(new_state, tree_root)
+            tree_root.parent = None
+
 
     return game_history, tree_root.state.winner
 
 def human_opponent(state):
     print(state)
-    inp = input("What is your move?")
+    inp = raw_input("What is your move?")
     pos = [int(x) for x in inp.split()]
-    print(state)
-    return pos
+    action = pos[0]*state.board_size + pos[1]
+    return action
 
 if __name__ == "__main__":
-    play_game(GoState(), human_opponent)
+    history, winner = play_game(opponent=human_opponent)
+    if winner == 1:
+        print("Black won")
+    else:
+        print("White won")
