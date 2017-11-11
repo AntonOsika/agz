@@ -4,10 +4,15 @@ ACTION_SPACE = [9*9 + 1]
 C_PUCT = 1.0
 
 """
+Needs a state class that has lots of logic
+
 TODO/fix:
-- implement naive policy function (uniform?)
-- implement play_action
-- implement value function with e.g. rollout -> who wins.
+- Implement State object that has action_space, etc
+- Implement step(state, action)
+- Evaluate pure MCTS on a simple problem
+- Render play with opponent
+- Render self play from history
+- Implement NN, and training NN
 
 """
 
