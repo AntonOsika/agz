@@ -7,7 +7,7 @@ class AddDivState():
     """
 
     def __init__(self, target = 7.4):
-
+        print("init")
         self.game_over = False
         self.winner = None
         self.current_player = 'b'  # TODO represent this with (1, -1) is faster
@@ -54,7 +54,7 @@ class AddDivState():
 
     def _compute_winner(self):
 
-        return 1/(10*(self.state - self.target)**2 + 1)
+        return 1/(10*abs(self.state - self.target) + 1)
 
 
     def _valid_actions(self):
@@ -69,9 +69,25 @@ class AddDivState():
         return self.state
 
 
+class test_value_policy:
+
+    def policy(self, state):
+        """Returns distribution over all allowed actions"""
+        # uniform placeholder:
+        return np.zeros([state.action_space]) + 1.0/state.action_space
+
+    def value(self, state):
+        return 1/(10*abs((state.state - state.target%1.0)) + 1)
+
+
+
+    def predict(self, state):
+        return self.policy(state), self.value(state)
+
 if __name__ == "__main__":
 
     start_state = AddDivState()
     tree_root = TreeStructure(start_state)
 
-    play_game(start_state)
+    hist, rew = play_game(start_state,policy_value=test_value_policy())
+    print(hist, rew)
