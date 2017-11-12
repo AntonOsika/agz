@@ -7,6 +7,10 @@ import numpy as np
 
 logger = logging.getLogger("__main__")
 
+class SimpleCNN(object):
+    def __init__(self):
+        pass
+
 class NaivePolicyValue(object):
     def __init__(self):
         pass
