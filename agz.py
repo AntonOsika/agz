@@ -156,11 +156,22 @@ def mcts(tree_root, policy_value, n_simulations):
         backpropagate(node, value)
 
 
+<<<<<<< HEAD
 # TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
               policy_value=NaivePolicyValue(),
               opponent=None,
               n_simulations=N_SIMULATIONS):
+=======
+def print_tree(tree_root, level):
+    if logger.level > 2:
+        print(" "*level, tree_root.choice_that_led_here, tree_root.state.state, tree_root.n, tree_root.w)
+        [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
+
+
+# TODO: Paste code from here into an agent class that can be queried
+def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=None):
+>>>>>>> 9dfc5e1... print tree function and fix w array to float32
     """
     Plays a game against itself or specified opponent.
 
@@ -178,6 +189,7 @@ def play_game(start_state=GoState(),
 
         mcts(tree_root, policy_value, n_simulations)
 
+        print_tree(tree_root,0)
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
 
@@ -197,6 +209,7 @@ def play_game(start_state=GoState(),
                 tree_root = TreeStructure(new_state, tree_root)
                 #FIXME: Should set policy here
             tree_root.parent = None
+
 
 
     return game_history, tree_root.state.winner
