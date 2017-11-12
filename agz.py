@@ -28,7 +28,9 @@ import logging
 import sys
 
 if "-d" in sys.argv:
-    logging.basicConfig(level=logging.DEBUG)
+    level_idx = sys.argv.index("-d") + 1
+    level = int(sys.argv[level_idx]) if level_idx < len(sys.argv) else 10
+    logging.basicConfig(level=level)
 else:
     logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,8 +53,8 @@ class GoState(GoBoard):
         self.action_space = board_size**2 + 1
         self.valid_actions = self._valid_actions()
 
-        self.last_action = None
-        self.last_action_2 = None
+        self.last_action = -1
+        self.last_action_2 = -1
 
         self.player_transition = {'b': 'w', 'w': 'b'}
 
@@ -72,24 +74,24 @@ class GoState(GoBoard):
         #     pos = self._action_pos(action)
 
         # If illegal move: Will pass
-        logger.log(7, "Did action {} in:\n{}".format(pos, self))
+        logger.log(5, "Did action {} in:\n{}".format(pos, self))
 
         if pos and not self.is_move_legal(self.current_player, pos):
             pos = None
-            logger.log(7, "Which was not allowed")
+            logger.log(5, "Which was not allowed")
 
         if pos:
             super(GoState, self).apply_move(self.current_player, pos)
 
         self.current_player = self.player_transition[self.current_player]
-        self._new_state_checks()  # Updates self.game_over and self.winner
 
         self.last_action_2 = self.last_action
-        self.last_action = action
+        self.last_action = pos
+
+        self._new_state_checks()  # Updates self.game_over and self.winner
 
     def _action_pos(self, action):
         if action == self.action_space - 1:  # pass turn
-
             return None
         else:
             return (action // self.board_size, action % self.board_size)
@@ -97,8 +99,8 @@ class GoState(GoBoard):
     def _new_state_checks(self):
         """Checks if game is over and who won"""
         board_is_full = len(self.board) == self.board_size**2
-        double_pass = (self.last_action == self.action_space - 1) and \
-                      (self.last_action_2 == self.action_space - 1)
+        double_pass = (self.last_action is None) and \
+                      (self.last_action_2 is None)
         self.game_over = board_is_full or double_pass
 
         if self.game_over:
@@ -309,6 +311,8 @@ def human_opponent(state):
         inp = raw_input("What is your move? \n")
         if inp == 'pass':
             return len(state.valid_actions) - 1
+        if inp == 'random':
+            return random.randint(0, len(state.valid_actions) - 1)
 
         try:
             pos = [int(x) for x in inp.split()]
