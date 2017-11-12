@@ -28,4 +28,4 @@ python agz.py
 - Use same logic this on other environments
 - Learn the transition dynamics of step(state, action)
 
-(`MCTSAgent` should probably implement `.update_state` and `.decision` methods_
+(`MCTSAgent` should probably implement `.update_state` and `.decision` methods)
