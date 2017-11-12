@@ -123,7 +123,7 @@ class GoState(GoBoard):
 
         return actions
 
-    def board_to_array(self):
+    def observed_state(self):
         board = np.zeros([2, self.board_size, self.board_size])
         for key, val in self.board.items():
             if val == 'b':
@@ -286,14 +286,14 @@ def play_game(state=GoState(), opponent=None):
 
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
-        game_history.append([tree_root.state, tree_root.state.board_to_array(), tree_root.n])
+        game_history.append([tree_root.state, tree_root.state.observed_state(), tree_root.n])
 
         choice = choice_to_play(tree_root, bool(opponent))
         tree_root = tree_root.children[choice]
         tree_root.parent = None
 
         if opponent:
-            game_history.append([tree_root.state, tree_root.state.board_to_array(), tree_root.n])
+            game_history.append([tree_root.state, tree_root.state.observed_state(), tree_root.n])
             choice = opponent(tree_root.state)
             if choice in tree_root.children:
                 tree_root = tree_root.children[choice]
