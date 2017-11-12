@@ -12,7 +12,7 @@ import tqdm
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 80  # FIXME
+N_SIMULATIONS = 40  # FIXME
 
 """
 
@@ -298,7 +298,7 @@ def play_game(state=GoState(), opponent=None):
 def human_opponent(state):
     print(state)
     while True:
-        inp = raw_input("What is your move: y x\n")
+        inp = raw_input("What is your move? \n")
         if inp == 'pass':
             return len(state.valid_actions) - 1
 
@@ -311,6 +311,10 @@ def human_opponent(state):
             print("Invalid move {} try again.".format(inp))
 
 if __name__ == "__main__":
+    print("")
+    print("Welcome!")
+    print("Format moves like: y x")
+    print("")
     history, winner = play_game(opponent=human_opponent)
     if winner == 1:
         print("Black won")
