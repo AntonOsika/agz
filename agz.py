@@ -12,7 +12,7 @@ import tqdm
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 40  # FIXME
+N_SIMULATIONS = 4  # FIXME
 
 """
 
@@ -123,7 +123,7 @@ class GoState(GoBoard):
 
     def board_to_array(self):
         board = np.zeros([2, self.board_size, self.board_size])
-        for key, val in board.items():
+        for key, val in self.board.items():
             if val == 'b':
                 board[0, key] = 1.0
             if val == 'w':
@@ -283,14 +283,15 @@ def play_game(state=GoState(), opponent=None):
             backpropagate(node, value)
 
         # Store the state and distribution before we prune the tree:
-        game_history.append([tree_root.state, tree_root.n/tree_root.n.sum()])
+        # TODO: Refactor this
+        game_history.append([tree_root.state, tree_root.state.board_to_array(), tree_root.n])
 
         choice = choice_to_play(tree_root, bool(opponent))
         tree_root = tree_root.children[choice]
         tree_root.parent = None
 
         if opponent:
-            game_history.append([tree_root.state, tree_root.n])
+            game_history.append([tree_root.state, tree_root.state.board_to_array(), tree_root.n])
             choice = opponent(tree_root.state)
             if choice in tree_root.children:
                 tree_root = tree_root.children[choice]
@@ -317,7 +318,25 @@ def human_opponent(state):
         except:
             print("Invalid move {} try again.".format(inp))
 
+
+def self_play_visualisation():
+    history, winner = play_game()
+    if winner == 1:
+        print("Black won")
+    else:
+        print("White won")
+
+    for state, board, hoice in history:
+        print(state)
+        raw_input("")
+
+    print("Game ended.")
+
 if __name__ == "__main__":
+    if "-selfplay" in sys.argv:
+        self_play_visualisation()
+        sys.exit()
+
     print("")
     print("Welcome!")
     print("Format moves like: y x")
