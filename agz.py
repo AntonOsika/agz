@@ -112,6 +112,37 @@ def backpropagate(node, value):
         _increment(node.parent, node.choice_that_led_here, value)
         node = node.parent
 
+def mcts(tree_root, policy_value):
+    # for i in tqdm.tqdm(range(N_SIMULATIONS)):
+    for i in range(N_SIMULATIONS):
+        node = tree_root
+        # Select from "PUCT/UCB1 equation" in paper.
+        choice = puct_choice(node)
+        while choice in node.children.keys():
+            node = node.children[choice]
+            choice = puct_choice(node)
+
+        if node.state.game_over:
+            # This only happens the second time we go to a winning state.
+            # Logic for visiting "winning nodes" multiple times is probably correct?
+            value = node.state.winner
+            backpropagate(node, value)
+            continue
+
+        # Expand tree:
+        new_state = step(node.state, choice)
+        node.children[choice] = TreeStructure(new_state, node, choice)
+        node = node.children[choice]
+
+        if new_state.game_over:
+            value = new_state.winner  # Probably look at the depth to see who won here?
+        else:
+            policy, value = policy_value.predict(node.state)
+            node.prior_policy = policy[node.state.valid_actions]
+
+        backpropagate(node, value)
+
+
 def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=None):
     """
     Plays a game against itself or specified opponent.
@@ -126,34 +157,8 @@ def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=N
 
     while not tree_root.state.game_over:
 
-        # for i in tqdm.tqdm(range(N_SIMULATIONS)):
-        for i in range(N_SIMULATIONS):
-            node = tree_root
-            # Select from "PUCT/UCB1 equation" in paper.
-            choice = puct_choice(node)
-            while choice in node.children.keys():
-                node = node.children[choice]
-                choice = puct_choice(node)
 
-            if node.state.game_over:
-                # This only happens the second time we go to a winning state.
-                # Logic for visiting "winning nodes" multiple times is probably correct? 
-                value = node.state.winner
-                backpropagate(node, value)
-                continue
-            
-            # Expand tree:
-            new_state = step(node.state, choice)
-            node.children[choice] = TreeStructure(new_state, node, choice)
-            node = node.children[choice]
-            
-            if new_state.game_over:
-                value = new_state.winner  # Probably look at the depth to see who won here?
-            else:
-                policy, value = policy_value.predict(node.state)
-                node.prior_policy = policy[node.state.valid_actions]
-
-            backpropagate(node, value)
+        mcts(tree_root, policy_value)
 
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
