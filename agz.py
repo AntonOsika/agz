@@ -11,13 +11,14 @@ from six.moves import input
 from gostate import GoState
 
 from policyvalue import NaivePolicyValue
+from policyvalue import SimpleCNN
 
 import tqdm
 
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 4  # FIXME
+N_SIMULATIONS = 40  # FIXME
 
 """
 
@@ -57,11 +58,12 @@ class TreeStructure(object):
         self.parent = parent
         self.state = state
 
-        self.w = np.zeros_like(state.valid_actions)
-        self.n = np.zeros_like(state.valid_actions) + np.finfo(np.float).resolution
+        self.w = np.zeros(len(state.valid_actions))
+        self.n = np.zeros(len(state.valid_actions))
+        self.n += (1.0 + np.random.rand(len(self.n)))*1e-10
         self.prior_policy = 1.0
 
-        self.sum_n = 0
+        self.sum_n = 1
         self.choice_that_led_here = choice_that_led_here
 
         self.move_number = 0
@@ -71,7 +73,9 @@ class TreeStructure(object):
 
 
     def history_sample(self):
-        return [self.state, self.state.observed_state(), self.n/self.n.sum()]
+        pi = np.zeros(self.state.action_space)
+        pi[self.state.valid_actions] = self.n/self.n.sum()
+        return [self.state, self.state.observed_state(), pi]
 
 def sample(probs):
     """Sample from unnormalized probabilities"""
@@ -83,8 +87,9 @@ def puct_distribution(node):
     """Puct equation"""
     # this should never be a distribution but always maximised over?
     logger.debug("Selecting node at move {}".format(node.move_number))
-    logger.debug(node.w.astype('int'))
-    logger.debug(node.n.astype('int'))
+    logger.debug(node.w)
+    logger.debug(node.n)
+    logger.debug(node.prior_policy)
 
     return node.w/node.n + C_PUCT*node.prior_policy*np.sqrt(node.sum_n)/(1 + node.n)
 
@@ -92,11 +97,13 @@ def puct_choice(node):
     """Selects the next move."""
     return np.argmax(puct_distribution(node))
 
+
 def choice_to_play(node, opponent=None):
     """Samples a move if beginning of self play game."""
     logger.debug("Selecting move # {}".format(node.move_number))
-    logger.debug(node.w.astype('int'))
-    logger.debug(node.n.astype('int'))
+    logger.debug(node.w)
+    logger.debug(node.n)
+    logger.debug(node.prior_policy)
 
     if node.move_number < 30 and opponent is None:
         return sample(node.n)
@@ -118,7 +125,10 @@ def backpropagate(node, value):
 
 
 # TODO: Paste code from here into an agent class that can be queried
-def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=None):
+def play_game(start_state=GoState(),
+              policy_value=NaivePolicyValue(),
+              opponent=None,
+              n_simulations=N_SIMULATIONS):
     """
     Plays a game against itself or specified opponent.
 
@@ -128,12 +138,14 @@ def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=N
 
     # TODO: This will set .move_number = 0, should maybe track whose turn it is instead:
     tree_root = TreeStructure(start_state)
+    policy, value = policy_value.predict(tree_root.state)
+    tree_root.prior_policy = policy[tree_root.state.valid_actions]
     game_history = []
 
     while not tree_root.state.game_over:
 
         # for i in tqdm.tqdm(range(N_SIMULATIONS)):
-        for i in range(N_SIMULATIONS):
+        for i in range(n_simulations):
             node = tree_root
             # Select from "PUCT/UCB1 equation" in paper.
             choice = puct_choice(node)
@@ -178,6 +190,7 @@ def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=N
             else:
                 new_state = step(tree_root.state, choice)
                 tree_root = TreeStructure(new_state, tree_root)
+                #FIXME: Should set policy here
             tree_root.parent = None
 
 
@@ -204,8 +217,9 @@ def human_opponent(state):
             print("Invalid move {} try again.".format(inp))
 
 
-def self_play_visualisation():
-    history, winner = play_game()
+def self_play_visualisation(board_size=BOARD_SIZE):
+    policy_value = SimpleCNN([board_size, board_size, 2])
+    history, winner = play_game(policy_value=policy_value)
     print("Watching game replay\nPress Return to advance board")
     for state, board, hoice in history:
         print(state)
@@ -216,19 +230,25 @@ def self_play_visualisation():
     else:
         print("White won")
 
+
+
+def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N_SIMULATIONS):
     if "-selfplay" in sys.argv:
         self_play_visualisation()
         return
 
-
-def main(policy_value=NaivePolicyValue()):
+    # Fixme:
+    policy_value = SimpleCNN([board_size, board_size, 2])
     print("")
     print("Welcome!")
     print("Format moves like: y x")
     print("(or pass/random)")
     print("")
     try:
-        history, winner = play_game(policy_value=policy_value, opponent=human_opponent)
+        history, winner = play_game(start_state=GoState(board_size),
+                                    policy_value=policy_value,
+                                    opponent=human_opponent,
+                                    n_simulations=n_simulations)
     except KeyboardInterrupt:
         print("Game aborted.")
         return

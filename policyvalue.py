@@ -5,11 +5,34 @@ import time
 
 import numpy as np
 
+from resnet import ResNet
+
+
 logger = logging.getLogger("__main__")
 
-class SimpleCNN(object):
-    def __init__(self):
-        pass
+"""Files are typically Go specific"""
+
+class SimpleCNN(ResNet):
+    """
+    Uses the keras resnet implementation.
+    It reverses order of input and their shape!
+    """
+    def __init__(self, input_shape):
+        super(SimpleCNN, self).__init__(input_shape=input_shape,
+                n_filter=8,
+                n_blocks=1)
+
+        self.compile()
+
+    def predict(self, state):
+        x = state.observed_state()
+        x = x[None, ...]  # batch_size = 1 here (using queue in paper)
+        p, v = self.model.predict(x)
+        return p.flatten(), v.flatten()[0]
+
+    def train_on_batch(self, x, y):
+        self.model.train_on_batch(x, y)
+
 
 class NaivePolicyValue(object):
     def __init__(self):
