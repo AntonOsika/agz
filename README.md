@@ -2,8 +2,8 @@
 
 ## AlphaGo Zero hack during AI Weekend, Stockholm
 
-python## Structure
-```
+## Structure
+python```
 ├── README.md
 ├── agz.py          # MCTS logic. File can be run for visualisations etc
 ├── gostate.py      # Go environment
