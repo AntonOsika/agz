@@ -18,15 +18,9 @@ N_SIMULATIONS = 80  # FIXME
 
 TODO/fix:
 - Implement about minimum viable NN design that should be able to learn!
-
-- TreeStructure.w does not seem to update with value
-- The agent wilctl think that it will be in and inifinte pass-turn loop. Fix this!
-- Implement a way to print the trees! (with n and q)
-- Fix that it get stuck on playing (0,0) on second move 
-    (and assumes opponent will do the same) when illegal move -> pass turn
 - Render self play from history
 - Implement NN, and training NN
-- make networks into a class
+- make network (functions) into a class
 
 """
 
@@ -44,7 +38,7 @@ np.set_printoptions(3)
 
 class GoState(GoBoard):
     """
-    Wrapper of betago.
+    Wrapper of betago class.
     TODO: Possibly replace the state with numpy arrays for less memory consumption
     """
 
@@ -78,11 +72,11 @@ class GoState(GoBoard):
         #     pos = self._action_pos(action)
 
         # If illegal move: Will pass
-        logger.debug("Did action {} in:\n{}".format(pos, self))
+        logger.log(7, "Did action {} in:\n{}".format(pos, self))
 
         if pos and not self.is_move_legal(self.current_player, pos):
             pos = None
-            logger.debug("Which was not allowed")
+            logger.log(7, "Which was not allowed")
 
         if pos:
             super(GoState, self).apply_move(self.current_player, pos)
@@ -136,9 +130,8 @@ def step(state, choice):
     """
     t0 = time.time()
     new_state = copy.deepcopy(state)
-    logger.debug("took {} to deepcopy \n{}".format(time.time()-t0, state) )
+    logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
     new_state.step(choice)
-    logger.debug(new_state)
     return new_state
 
 def policy_network(state):
@@ -205,8 +198,9 @@ def sample(probs):
 def puct_distribution(node):
     """Puct equation"""
     # this should never be a distribution but always maximised over?
-    logger.debug(node.w)
-    logger.debug(node.n)
+    logger.debug("Selecting node at move {}".format(node.move_number))
+    logger.debug(node.w.astype('int'))
+    logger.debug(node.n.astype('int'))
     return node.w/node.n + C_PUCT*node.policy_result*np.sqrt(node.sum_n)/(1 + node.n)
 
 def puct_choice(node):
@@ -215,8 +209,9 @@ def puct_choice(node):
 
 def choice_to_play(node, opponent=None):
     """Samples a move if beginning of self play game."""
-    logger.debug(node.w)
-    logger.debug(node.n)
+    logger.debug("Selecting move # {}".format(node.move_number))
+    logger.debug(node.w.astype('int'))
+    logger.debug(node.n.astype('int'))
     if node.move_number < 30 and opponent is None:
         return sample(node.n)
     else:
