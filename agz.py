@@ -1,24 +1,26 @@
 import copy
+import random
 
 import numpy as np
 
-import betago
 import time
-from betago.dataloader.goboard import GoBoard
-from betago.scoring import evaluate_territory
+from goboard import GoBoard
+from scoring import evaluate_territory
 
 import tqdm
 
 
-
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 160  # FIXME
+N_SIMULATIONS = 80  # FIXME
 
 """
 
 TODO/fix:
-- The agent will think that it will be in and inifinte pass-turn loop. Fix this!
+- Implement about minimum viable NN design that should be able to learn!
+
+- TreeStructure.w does not seem to update with value
+- The agent wilctl think that it will be in and inifinte pass-turn loop. Fix this!
 - Implement a way to print the trees! (with n and q)
 - Fix that it get stuck on playing (0,0) on second move 
     (and assumes opponent will do the same) when illegal move -> pass turn
@@ -29,8 +31,14 @@ TODO/fix:
 """
 
 import logging
-logging.basicConfig(level=logging.INFO)
+import sys
+
+if "-d" in sys.argv:
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+np.set_printoptions(3)
 
 
 
@@ -45,19 +53,21 @@ class GoState(GoBoard):
 
         self.game_over = False
         self.winner = None
-        self.action_space = board_size**2 + 1
         self.current_player = 'b'  # TODO represent this with (1, -1) is faster
+        self.action_space = board_size**2 + 1
+        self.valid_actions = self._valid_actions()
 
         self.last_action = None
         self.last_action_2 = None
 
         self.player_transition = {'b': 'w', 'w': 'b'}
 
-    def step(self, action):
-        random_ordering = iter(np.random.permutation(self.action_space))
+    def step(self, choice):
 
+        action = self.valid_actions[choice]
         pos = self._action_pos(action)
 
+        # random_ordering = iter(np.random.permutation(self.action_space))
         # TODO: "test if valid" uses deepcopy and took too long (especially when doing rollouts)
         # Find first legal move:
         # while pos and not self.is_move_legal(self.current_player, pos):
@@ -70,7 +80,6 @@ class GoState(GoBoard):
         # If illegal move: Will pass
         logger.debug("Did action {} in:\n{}".format(pos, self))
 
-        # TODO: This should work ok!
         if pos and not self.is_move_legal(self.current_player, pos):
             pos = None
             logger.debug("Which was not allowed")
@@ -101,12 +110,25 @@ class GoState(GoBoard):
         if self.game_over:
             self.winner = self._compute_winner()
 
+        self.valid_actions = self._valid_actions()
+
     def _compute_winner(self):
         counts = evaluate_territory(self)
         black_won = counts.num_black_stones + counts.num_black_territory > counts.num_white_stones + counts.num_white_territory
-        return 2*black_won - 1
+        white_won = counts.num_black_stones + counts.num_black_territory < counts.num_white_stones + counts.num_white_territory
+        # Make sure tie -> 0
+        return black_won - white_won
 
-def step(state, action):
+    def _valid_actions(self):
+        actions = []
+        for action in range(self.action_space):
+            if self._action_pos(action) not in self.board:
+                actions.append(action)
+
+        return actions
+
+
+def step(state, choice):
     """Functional stateless version of GoState.step()
     Args:
         state: GoState
@@ -115,7 +137,7 @@ def step(state, action):
     t0 = time.time()
     new_state = copy.deepcopy(state)
     logger.debug("took {} to deepcopy \n{}".format(time.time()-t0, state) )
-    new_state.step(action)
+    new_state.step(choice)
     logger.debug(new_state)
     return new_state
 
@@ -143,8 +165,9 @@ def value_network_rollout(state):
     t1 = time.time()
     counter = 0
     while not state.game_over:
-        action = sample(policy_network(state))
-        state.step(action)
+        # action = sample(policy_network(state))
+        choice = random.randint(0, len(state.valid_actions) - 1)
+        state.step(choice)
         counter += 1
     logger.debug("took {} + {} to copy + roll out for {}:".format(
         t1 - t0, time.time() - t1, counter))
@@ -154,44 +177,46 @@ value_network = value_network_rollout
 
 
 class TreeStructure():
-    def __init__(self, state, parent=None, action_that_led_here=None):
+    def __init__(self, state, parent=None, choice_that_led_here=None):
 
-        self.children = {}  # map from action to node
+        self.children = {}  # map from choice to node
 
         self.parent = parent
         self.state = state
 
-        self.w = np.zeros([state.action_space])
-        self.n = np.zeros([state.action_space]) + np.finfo(np.float).resolution
-        self.policy_result = policy_network(state)  # TODO: use a setter function
+        self.w = np.zeros_like(state.valid_actions)
+        self.n = np.zeros_like(state.valid_actions) + np.finfo(np.float).resolution
+        self.policy_result = policy_network(state)[state.valid_actions]  # TODO: use a setter function
 
         self.sum_n = 0
-        self.action_that_led_here = action_that_led_here
+        self.choice_that_led_here = choice_that_led_here
 
         self.move_number = 0
 
         if parent:
             self.move_number = parent.move_number + 1
 
-def sample(action_probs):
+def sample(probs):
     """Sample from unnormalized probabilities"""
 
-    action_probs = action_probs / action_probs.sum()
-    return np.random.choice(np.arange(len(action_probs)), p=action_probs.flatten())
+    probs = probs / probs.sum()
+    return np.random.choice(np.arange(len(probs)), p=probs.flatten())
 
 def puct_distribution(node):
     """Puct equation"""
-    # this shouldnt be a distribution but always maximised over?
+    # this should never be a distribution but always maximised over?
+    logger.debug(node.w)
+    logger.debug(node.n)
     return node.w/node.n + C_PUCT*node.policy_result*np.sqrt(node.sum_n)/(1 + node.n)
 
-def puct_action(node):
+def puct_choice(node):
     """Selects the next move."""
     return np.argmax(puct_distribution(node))
 
-def action_to_play(node, opponent=None):
+def choice_to_play(node, opponent=None):
     """Samples a move if beginning of self play game."""
-    logger.debug(node.n)
     logger.debug(node.w)
+    logger.debug(node.n)
     if node.move_number < 30 and opponent is None:
         return sample(node.n)
     else:
@@ -199,15 +224,15 @@ def action_to_play(node, opponent=None):
 
 def backpropagate(node, value):
 
-    def _increment(node, action, value):
-        # Mirror value for odd states (?):
-        value *= 2*(node.move_number % 2 ) - 1
-        node.w[action] += value
-        node.n[action] += 1
+    def _increment(node, choice, value):
+        # Mirror value for odd states:
+        value *= 1 - 2*(node.move_number % 2)
+        node.w[choice] += value
+        node.n[choice] += 1
         node.sum_n += 1
 
     while node.parent:
-        _increment(node.parent, node.action_that_led_here, value)
+        _increment(node.parent, node.choice_that_led_here, value)
         node = node.parent
 
 def play_game(state=GoState(), opponent=None):
@@ -227,23 +252,23 @@ def play_game(state=GoState(), opponent=None):
         # for i in tqdm.tqdm(range(N_SIMULATIONS)):
         for i in range(N_SIMULATIONS):
             node = tree_root
-            # Select action from "PUCT/UCB1 equation" in paper.
-            action = puct_action(node)
-            while action in node.children.keys():
-                node = node.children[action]
-                action = puct_action(node)
+            # Select from "PUCT/UCB1 equation" in paper.
+            choice = puct_choice(node)
+            while choice in node.children.keys():
+                node = node.children[choice]
+                choice = puct_choice(node)
 
             if node.state.game_over:
                 # This only happens the second time we go to a winning state.
-                # Logic for visiting "winning nodes" multiple times is probably correct? FIXME
+                # Logic for visiting "winning nodes" multiple times is probably correct? 
                 value = node.state.winner
                 backpropagate(node, value)
                 continue
             
             # Expand tree:
-            new_state = step(node.state, action)
-            node.children[action] = TreeStructure(new_state, node, action)
-            node = node.children[action]
+            new_state = step(node.state, choice)
+            node.children[choice] = TreeStructure(new_state, node, choice)
+            node = node.children[choice]
             
             # Now happens in constructor, probably should do it outside (and parallellize):
             # node.policy_result = policy_network(state)
@@ -258,17 +283,17 @@ def play_game(state=GoState(), opponent=None):
         # Store the state and distribution before we prune the tree:
         game_history.append([tree_root.state, tree_root.n/tree_root.n.sum()])
 
-        action = action_to_play(tree_root, bool(opponent))
-        tree_root = tree_root.children[action]
+        choice = choice_to_play(tree_root, bool(opponent))
+        tree_root = tree_root.children[choice]
         tree_root.parent = None
 
         if opponent:
             game_history.append([tree_root.state, tree_root.n])
-            action = opponent(tree_root.state)
-            if action in tree_root.children:
-                tree_root = tree_root.children[action]
+            choice = opponent(tree_root.state)
+            if choice in tree_root.children:
+                tree_root = tree_root.children[choice]
             else:
-                new_state = step(tree_root.state, action)
+                new_state = step(tree_root.state, choice)
                 tree_root = TreeStructure(new_state, tree_root)
             tree_root.parent = None
 
@@ -277,10 +302,18 @@ def play_game(state=GoState(), opponent=None):
 
 def human_opponent(state):
     print(state)
-    inp = raw_input("What is your move?")
-    pos = [int(x) for x in inp.split()]
-    action = pos[0]*state.board_size + pos[1]
-    return action
+    while True:
+        inp = raw_input("What is your move: y x\n")
+        if inp == 'pass':
+            return len(state.valid_actions) - 1
+
+        try:
+            pos = [int(x) for x in inp.split()]
+            action = pos[0]*state.board_size + pos[1]
+            choice = state.valid_actions.index(action)
+            return choice
+        except:
+            print("Invalid move {} try again.".format(inp))
 
 if __name__ == "__main__":
     history, winner = play_game(opponent=human_opponent)

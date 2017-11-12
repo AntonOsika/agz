@@ -6,7 +6,6 @@
 
 ```
 pip install numpy
-pip install betago
 pip install tqdm
 
 python agz.py
