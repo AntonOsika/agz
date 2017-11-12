@@ -11,7 +11,10 @@ logger = logging.getLogger("__main__")
 
 class GoState(GoBoard):
     """
-    Wrapper of betago class.
+    Similar to OpenAI gym env for go board.
+    Has .valid_actions and for help in mcts.
+    Can generate the observation with observed_state.
+
     TODO: Possibly replace the state with numpy arrays for less memory consumption
     """
 
@@ -95,12 +98,12 @@ class GoState(GoBoard):
         return actions
 
     def observed_state(self):
-        board = np.zeros([2, self.board_size, self.board_size])
+        board = np.zeros([self.board_size, self.board_size, 2])
         for key, val in self.board.items():
             if val == 'b':
-                board[0, key] = 1.0
+                board[key, 0] = 1.0
             if val == 'w':
-                board[1, key] = 1.0
+                board[key, 1] = 1.0
 
         return board
 

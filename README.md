@@ -23,7 +23,9 @@ python agz.py
 ```
 
 ## Todo
-- Implement `SimpleCNN` class that has `.predict` and `.train_on_batch` methods
+- Implement random reflections of board (mcts kind of ruins things now)
+- Tune how much time is spend exploring / training (c.f. AGZ paper)
+- Parallelize training and simulation.
 - Use code from `agz.play_game` to create `MCTSAgent` class 
 - Use same logic this on other environments
 - Learn the transition dynamics of step(state, action)
