@@ -57,8 +57,8 @@ class TreeStructure(object):
         self.parent = parent
         self.state = state
 
-        self.w = np.zeros_like(state.valid_actions)
-        self.n = np.zeros_like(state.valid_actions) + np.finfo(np.float).resolution
+        self.w = np.zeros_like(state.valid_actions,dtype=np.float32)
+        self.n = np.zeros_like(state.valid_actions,dtype=np.float32) + np.finfo(np.float).resolution
         self.prior_policy = 1.0
 
         self.sum_n = 0
@@ -147,6 +147,11 @@ def mcts(tree_root, policy_value):
         backpropagate(node, value)
 
 
+def print_tree(tree_root, level):
+    if logger.level > 2:
+        print(" "*level, tree_root.choice_that_led_here, tree_root.state.state, tree_root.n, tree_root.w)
+        [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
+
 
 # TODO: Paste code from here into an agent class that can be queried
 def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=None):
@@ -166,6 +171,7 @@ def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=N
 
         mcts(tree_root, policy_value)
 
+        print_tree(tree_root,0)
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
 
@@ -184,6 +190,7 @@ def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=N
                 new_state = step(tree_root.state, choice)
                 tree_root = TreeStructure(new_state, tree_root)
             tree_root.parent = None
+
 
 
     return game_history, tree_root.state.winner
