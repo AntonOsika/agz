@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import copy
 from six.moves import range
 
+"""Original copyright Max Pumperla written for betago."""
 
 class GoBoard(object):
     '''

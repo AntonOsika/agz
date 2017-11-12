@@ -2,6 +2,7 @@ from __future__ import absolute_import
 import itertools
 from six.moves import range
 
+"""Original copyright Max Pumperla written for betago."""
 
 class Territory(object):
     def __init__(self, territory_map):
