@@ -6,10 +6,6 @@ import numpy as np
 
 import time
 
-if "-d" in sys.argv:
-    logging.basicConfig(level=logging.DEBUG)
-else:
-    logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
