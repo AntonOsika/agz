@@ -121,13 +121,20 @@ class GoState(GoBoard):
 
         return actions
 
+    def board_to_array(self):
+        board = np.zeros([2, self.board_size, self.board_size])
+        for key, val in board.items():
+            if val == 'b':
+                board[0, key] = 1.0
+            if val == 'w':
+                board[1, key] = 1.0
+
+        return board
+
+
 
 def step(state, choice):
-    """Functional stateless version of GoState.step()
-    Args:
-        state: GoState
-        action: integer
-    """
+    """Functional stateless version of env.step() """
     t0 = time.time()
     new_state = copy.deepcopy(state)
     logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
