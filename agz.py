@@ -103,7 +103,7 @@ def backpropagate(node, value):
 
     def _increment(node, choice, value):
         # Mirror value for odd states:
-        value *= 1 - 2*(node.move_number % 2)
+        value *= 1 - 2*(node.state.current_player != 'b')
         node.w[choice] += value
         node.n[choice] += 1
         node.sum_n += 1
