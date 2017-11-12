@@ -69,6 +69,10 @@ class TreeStructure(object):
         if parent:
             self.move_number = parent.move_number + 1
 
+
+    def history_sample(self):
+        return [self.state, self.state.observed_state(), self.n/self.n.sum()]
+
 def sample(probs):
     """Sample from unnormalized probabilities"""
 
@@ -103,7 +107,7 @@ def backpropagate(node, value):
 
     def _increment(node, choice, value):
         # Mirror value for odd states:
-        value *= 1 - 2*(node.move_number % 2)
+        value *= 1 - 2*(node.move_number % 2)  # TODO: use node.state.current_player
         node.w[choice] += value
         node.n[choice] += 1
         node.sum_n += 1
@@ -112,6 +116,8 @@ def backpropagate(node, value):
         _increment(node.parent, node.choice_that_led_here, value)
         node = node.parent
 
+
+# TODO: Paste code from here into an agent class that can be queried
 def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=None):
     """
     Plays a game against itself or specified opponent.
@@ -157,14 +163,15 @@ def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=N
 
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
-        game_history.append([tree_root.state, tree_root.state.observed_state(), tree_root.n])
+
+        game_history.append(tree_root.history_sample())
 
         choice = choice_to_play(tree_root, bool(opponent))
         tree_root = tree_root.children[choice]
         tree_root.parent = None
 
         if opponent:
-            game_history.append([tree_root.state, tree_root.state.observed_state(), tree_root.n])
+            game_history.append(tree_root.history_sample())
             choice = opponent(tree_root.state)
             if choice in tree_root.children:
                 tree_root = tree_root.children[choice]
@@ -214,13 +221,18 @@ def self_play_visualisation():
         return
 
 
-def main():
+def main(policy_value=NaivePolicyValue()):
     print("")
     print("Welcome!")
     print("Format moves like: y x")
     print("(or pass/random)")
     print("")
-    history, winner = play_game(opponent=human_opponent)
+    try:
+        history, winner = play_game(policy_value=policy_value, opponent=human_opponent)
+    except KeyboardInterrupt:
+        print("Game aborted.")
+        return
+
     if winner == 1:
         print("AI won")
     else:
