@@ -13,14 +13,13 @@ from gostate import GoState
 N_SIMULATIONS = 100
 
 def training_loop(policy_value_class=policyvalue.SimpleCNN,
-                  board_size=9,
+                  board_size=5,
                   n_simulations=N_SIMULATIONS,
                   games_per_iteration=10,
                   train_per_iteration=10,
                   eval_games=10,
                   batch_size=32,
-                  visualise_freq=100,
-                  memory_size=1e7):
+                  visualise_freq=10):
 
     # obs_shape = GoState(board_size=board_size).observed_state().shape
     # memory = np.array([memory_size] + obs_shape)
@@ -79,7 +78,7 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
     return best_model
 
 def main(n_simulations=N_SIMULATIONS):
-    board_size = 9
+    board_size = 5
     input_shape = [board_size, board_size, 2]
     dumb_model = policyvalue.SimpleCNN(input_shape=input_shape)
     smart_model = training_loop(board_size=board_size)
