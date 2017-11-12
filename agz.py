@@ -6,11 +6,9 @@ import time
 
 import numpy as np
 
-
 from six.moves import input
 
 from gostate import GoState
-from scoring import evaluate_territory
 
 from policyvalue import NaivePolicyValue
 
@@ -211,17 +209,22 @@ def self_play_visualisation():
     else:
         print("White won")
 
-if __name__ == "__main__":
     if "-selfplay" in sys.argv:
         self_play_visualisation()
-        sys.exit()
+        return
 
+
+def main():
     print("")
     print("Welcome!")
     print("Format moves like: y x")
+    print("(or pass/random)")
     print("")
     history, winner = play_game(opponent=human_opponent)
     if winner == 1:
-        print("Black won")
+        print("AI won")
     else:
-        print("White won")
+        print("Human won")
+
+if __name__ == "__main__":
+    main()

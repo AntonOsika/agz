@@ -1,3 +1,13 @@
+import logging
+import numpy as np
+
+from goboard import GoBoard
+from scoring import evaluate_territory
+
+BOARD_SIZE = 5
+
+logger = logging.getLogger("__main__")
+
 
 class GoState(GoBoard):
     """
