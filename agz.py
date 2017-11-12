@@ -1,11 +1,18 @@
+import logging
+import sys
 import copy
 import random
+import time
 
 import numpy as np
 
-import time
+
+from six.moves import input
+
 from goboard import GoBoard
 from scoring import evaluate_territory
+
+from policyvalue import NaivePolicyValue
 
 import tqdm
 
@@ -23,9 +30,6 @@ TODO/fix:
 - make network (functions) into a class
 
 """
-
-import logging
-import sys
 
 if "-d" in sys.argv:
     level_idx = sys.argv.index("-d") + 1
@@ -143,42 +147,8 @@ def step(state, choice):
     new_state.step(choice)
     return new_state
 
-def policy_network(state):
-    """Returns distribution over all allowed actions"""
-    # uniform placeholder:
-    return np.zeros([state.action_space]) + 1.0/state.action_space
 
-def value_network_counter(state):
-    black_stones = 0
-    white_stones = 0
-    for x in state.board.values():
-        if x == 'b':
-            black_stones += 1
-        if x == 'w':
-            white_stones += 1
-    value = np.tanh((black_stones - white_stones)/3.0)
-    return value
-
-def value_network_rollout(state):
-    """Returns value of position for player 1."""
-    # simple rollout placeholder:
-    t0 = time.time()
-    state = copy.deepcopy(state)
-    t1 = time.time()
-    counter = 0
-    while not state.game_over:
-        # action = sample(policy_network(state))
-        choice = random.randint(0, len(state.valid_actions) - 1)
-        state.step(choice)
-        counter += 1
-    logger.debug("took {} + {} to copy + roll out for {}:".format(
-        t1 - t0, time.time() - t1, counter))
-    return state.winner
-
-value_network = value_network_rollout
-
-
-class TreeStructure():
+class TreeStructure(object):
     def __init__(self, state, parent=None, choice_that_led_here=None):
 
         self.children = {}  # map from choice to node
@@ -188,7 +158,7 @@ class TreeStructure():
 
         self.w = np.zeros_like(state.valid_actions)
         self.n = np.zeros_like(state.valid_actions) + np.finfo(np.float).resolution
-        self.policy_result = policy_network(state)[state.valid_actions]  # TODO: use a setter function
+        self.prior_policy = 1.0
 
         self.sum_n = 0
         self.choice_that_led_here = choice_that_led_here
@@ -210,7 +180,8 @@ def puct_distribution(node):
     logger.debug("Selecting node at move {}".format(node.move_number))
     logger.debug(node.w.astype('int'))
     logger.debug(node.n.astype('int'))
-    return node.w/node.n + C_PUCT*node.policy_result*np.sqrt(node.sum_n)/(1 + node.n)
+
+    return node.w/node.n + C_PUCT*node.prior_policy*np.sqrt(node.sum_n)/(1 + node.n)
 
 def puct_choice(node):
     """Selects the next move."""
@@ -221,6 +192,7 @@ def choice_to_play(node, opponent=None):
     logger.debug("Selecting move # {}".format(node.move_number))
     logger.debug(node.w.astype('int'))
     logger.debug(node.n.astype('int'))
+
     if node.move_number < 30 and opponent is None:
         return sample(node.n)
     else:
@@ -239,7 +211,7 @@ def backpropagate(node, value):
         _increment(node.parent, node.choice_that_led_here, value)
         node = node.parent
 
-def play_game(state=GoState(), opponent=None):
+def play_game(start_state=GoState(), policy_value=NaivePolicyValue(), opponent=None):
     """
     Plays a game against itself or specified opponent.
 
@@ -248,7 +220,7 @@ def play_game(state=GoState(), opponent=None):
     """
 
     # TODO: This will set .move_number = 0, should maybe track whose turn it is instead:
-    tree_root = TreeStructure(state)  
+    tree_root = TreeStructure(start_state)
     game_history = []
 
     while not tree_root.state.game_over:
@@ -274,14 +246,12 @@ def play_game(state=GoState(), opponent=None):
             node.children[choice] = TreeStructure(new_state, node, choice)
             node = node.children[choice]
             
-            # Now happens in constructor, probably should do it outside (and parallellize):
-            # node.policy_result = policy_network(state)
-            
             if new_state.game_over:
                 value = new_state.winner  # Probably look at the depth to see who won here?
             else:
-                value = value_network(state)
-            
+                policy, value = policy_value.predict(node.state)
+                node.prior_policy = policy[node.state.valid_actions]
+
             backpropagate(node, value)
 
         # Store the state and distribution before we prune the tree:
@@ -305,10 +275,13 @@ def play_game(state=GoState(), opponent=None):
 
     return game_history, tree_root.state.winner
 
+
+# UI code below:
+
 def human_opponent(state):
     print(state)
     while True:
-        inp = raw_input("What is your move? \n")
+        inp = input("What is your move? \n")
         if inp == 'pass':
             return len(state.valid_actions) - 1
         if inp == 'random':
@@ -325,16 +298,15 @@ def human_opponent(state):
 
 def self_play_visualisation():
     history, winner = play_game()
+    print("Watching game replay\nPress Return to advance board")
+    for state, board, hoice in history:
+        print(state)
+        input("")
+
     if winner == 1:
         print("Black won")
     else:
         print("White won")
-
-    for state, board, hoice in history:
-        print(state)
-        raw_input("")
-
-    print("Game ended.")
 
 if __name__ == "__main__":
     if "-selfplay" in sys.argv:
