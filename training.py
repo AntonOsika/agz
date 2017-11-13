@@ -37,7 +37,6 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
     for i in itertools.count():
         print("Iteration", i)
         try:
-        # if 1:
             for j in range(games_per_iteration):
                 history, winner = agz.play_game(start_state=GoState(board_size),
                                                 policy_value=best_model,
@@ -62,7 +61,7 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
 
                 model.train_on_batch(obs, [pi, z])
 
-            # TODO: Implement agents and duels
+            # TODO: Implement agent class and duels
             # for i in range(eval_games):
             #     history, winner = agz.play_game(policyvalue=model, opponent=)
 

@@ -13,14 +13,15 @@ from gostate import GoState
 from policyvalue import NaivePolicyValue
 from policyvalue import SimpleCNN
 
-import tqdm
+# import tqdm
 
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 40  # FIXME
+N_SIMULATIONS = 40
 
 """
+MCTS logic and go playing / visualisation.
 
 TODO/fix:
 - Implement minimum viable NN design that should be able to learn!
@@ -30,12 +31,14 @@ TODO/fix:
 
 """
 
+# '-d level' argument for printing specific level:
 if "-d" in sys.argv:
     level_idx = sys.argv.index("-d") + 1
     level = int(sys.argv[level_idx]) if level_idx < len(sys.argv) else 10
     logging.basicConfig(level=level)
 else:
     logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 np.set_printoptions(3)
 
@@ -111,6 +114,7 @@ def choice_to_play(node, opponent=None):
         return np.argmax(node.n)
 
 def backpropagate(node, value):
+    """MCTS backpropagation"""
 
     def _increment(node, choice, value):
         # Mirror value for odd states:
@@ -124,7 +128,7 @@ def backpropagate(node, value):
         node = node.parent
 
 
-# TODO: Paste code from here into an agent class that can be queried
+# TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
               policy_value=NaivePolicyValue(),
               opponent=None,
@@ -198,8 +202,8 @@ def play_game(start_state=GoState(),
 
 
 # UI code below:
-
 def human_opponent(state):
+    """Queries human for move when called."""
     print(state)
     while True:
         inp = input("What is your move? \n")
@@ -218,6 +222,7 @@ def human_opponent(state):
 
 
 def self_play_visualisation(board_size=BOARD_SIZE):
+    """Visualises one game of self_play"""
     policy_value = SimpleCNN([board_size, board_size, 2])
     history, winner = play_game(policy_value=policy_value)
     print("Watching game replay\nPress Return to advance board")
@@ -233,12 +238,19 @@ def self_play_visualisation(board_size=BOARD_SIZE):
 
 
 def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N_SIMULATIONS):
+
     if "-selfplay" in sys.argv:
         self_play_visualisation()
         return
 
-    # Fixme:
+    if "-160" in sys.argv:
+        n_simulations = 160
+        print("Letting MCTS search for {} moves!".format(n_simulations))
+
+    # Loads weights that trained for 60 iterations
     policy_value = SimpleCNN([board_size, board_size, 2])
+    policy_value.load(6)
+
     print("")
     print("Welcome!")
     print("Format moves like: y x")
