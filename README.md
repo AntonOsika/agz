@@ -1,6 +1,4 @@
-# MCTS things 
-
-## AlphaGo Zero hack during AI Weekend, Stockholm
+# AlphaGo Zero based RL agent 
 
 ## Structure
 ```python
