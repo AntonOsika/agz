@@ -10,7 +10,10 @@ from resnet import ResNet
 
 logger = logging.getLogger("__main__")
 
-"""Files are typically Go specific"""
+"""
+Model evaluating prior-policy and value for MCTS.
+Classes here are Go specific so far.
+"""
 
 class SimpleCNN(ResNet):
     """
@@ -32,6 +35,13 @@ class SimpleCNN(ResNet):
 
     def train_on_batch(self, x, y):
         self.model.train_on_batch(x, y)
+
+    def load(self, number):
+        fn = "model_{}x{}_{}.h5".format(self.input_shape[0], self.input_shape[1], number)
+        try:
+            self.model.load_weights(fn)
+        except:
+            print("Couldnt load model weights {}".format(fn))
 
 
 class NaivePolicyValue(object):

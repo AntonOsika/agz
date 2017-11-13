@@ -9,8 +9,6 @@ from keras.layers import Conv2D
 from keras.layers import BatchNormalization
 from keras.models import Model
 
-"""Author: Oliver Gafvert"""
-
 class ResNet(object):
     '''
         Creates a residual neural network as described in the AlphaGo Zero paper.
