@@ -18,16 +18,13 @@ from policyvalue import SimpleCNN
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
-N_SIMULATIONS = 40
+N_SIMULATIONS = 160
 
 """
 MCTS logic and go playing / visualisation.
 
 TODO/fix:
-- Implement minimum viable NN design that should be able to learn!
-- Render self play from history
-- Implement NN, and training NN
-- make network (functions) into a class
+- Decide on CLI arguments and use argparse
 
 """
 
@@ -243,8 +240,8 @@ def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N
         self_play_visualisation()
         return
 
-    if "-160" in sys.argv:
-        n_simulations = 160
+    if "-40" in sys.argv:
+        n_simulations = 40
         print("Letting MCTS search for {} moves!".format(n_simulations))
 
     # Loads weights that trained for 60 iterations
