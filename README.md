@@ -16,7 +16,8 @@ Made during 'AI Weekend' in Stockholm.
 
 ```
 pip install numpy
-pip install tqdm
+pip install keras
+pip install tensorflow
 
 python agz.py
 ```
