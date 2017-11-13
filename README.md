@@ -1,4 +1,5 @@
 # AlphaGo Zero based RL agent 
+Made during 'AI Weekend' in Stockholm.
 
 ## Structure
 ```python
