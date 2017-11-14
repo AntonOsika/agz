@@ -1,1 +1,5 @@
+.agz
 *.prof
+*.pyc
+*.h5
+*.hdf5

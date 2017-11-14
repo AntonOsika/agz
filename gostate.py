@@ -11,8 +11,21 @@ logger = logging.getLogger("__main__")
 
 class GoState(GoBoard):
     """
-    Wrapper of betago class.
-    TODO: Possibly replace the state with numpy arrays for less memory consumption
+    OpenAI-gym env for go board.
+    Has .valid_actions to sample from. If step receives an invalid actions -> pass turn is played.
+    Can generate the numeric observation with .observed_state.
+
+    properties:
+
+    .winner
+    .game_over
+    .current_player
+    .action_space
+    .valid_actions
+
+
+    TODO: Replace go engine code / do something smart so that checking valid states does not require a deepcopy.
+
     """
 
     def __init__(self, board_size=BOARD_SIZE):
@@ -20,7 +33,7 @@ class GoState(GoBoard):
 
         self.game_over = False
         self.winner = None
-        self.current_player = 'b'  # TODO represent this with (1, -1) is faster
+        self.current_player = 'b'  # TODO represent this with (1, -1) would be faster
         self.action_space = board_size**2 + 1
         self.valid_actions = self._valid_actions()
 
@@ -33,16 +46,6 @@ class GoState(GoBoard):
 
         action = self.valid_actions[choice]
         pos = self._action_pos(action)
-
-        # random_ordering = iter(np.random.permutation(self.action_space))
-        # TODO: "test if valid" uses deepcopy and took too long (especially when doing rollouts)
-        # Find first legal move:
-        # while pos and not self.is_move_legal(self.current_player, pos):
-        #     try:
-        #         action = next(random_ordering)
-        #     except:
-        #         raise Exception("No legal action.")
-        #     pos = self._action_pos(action)
 
         # If illegal move: Will pass
         logger.log(5, "Did action {} in:\n{}".format(pos, self))
@@ -95,12 +98,12 @@ class GoState(GoBoard):
         return actions
 
     def observed_state(self):
-        board = np.zeros([2, self.board_size, self.board_size])
+        board = np.zeros([self.board_size, self.board_size, 2])
         for key, val in self.board.items():
             if val == 'b':
-                board[0, key] = 1.0
+                board[key, 0] = 1.0
             if val == 'w':
-                board[1, key] = 1.0
+                board[key, 1] = 1.0
 
         return board
 
