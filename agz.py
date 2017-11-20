@@ -3,18 +3,25 @@ import sys
 import copy
 import random
 import time
+import os
 
 import numpy as np
 
 from six.moves import input
 
+"""
 from gostate import GoState
+"""
+from gostate_pachi import GoState
+from gostate_pachi import step
 
 from policyvalue import NaivePolicyValue
 from policyvalue import SimpleCNN
 
 # import tqdm
 
+#The following is used when GPU memory is full FIXME
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
@@ -40,14 +47,14 @@ logger = logging.getLogger(__name__)
 np.set_printoptions(3)
 
 
-
-def step(state, choice):
-    """Functional stateless version of env.step() """
-    t0 = time.time()
-    new_state = copy.deepcopy(state)
-    logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
-    new_state.step(choice)
-    return new_state
+if 'step' not in globals():
+    def step(state, choice):
+        """Functional stateless version of env.step() """
+        t0 = time.time()
+        new_state = copy.deepcopy(state)
+        logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
+        new_state.step(choice)
+        return new_state
 
 
 class TreeStructure(object):
@@ -73,6 +80,7 @@ class TreeStructure(object):
 
 
     def history_sample(self):
+        """Returns a representation of state to be stored for training"""
         pi = np.zeros(self.state.action_space)
         pi[self.state.valid_actions] = self.n/self.n.sum()
         return [self.state, self.state.observed_state(), pi]
@@ -157,9 +165,8 @@ def mcts(tree_root, policy_value, n_simulations):
 
 
 def print_tree(tree_root, level):
-    if logger.level > 2:
-        print(" "*level, tree_root.choice_that_led_here, tree_root.state.state, tree_root.n, tree_root.w)
-        [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
+    print(" "*level, tree_root.choice_that_led_here, tree_root.state.board, tree_root.n, tree_root.w)
+        # [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
 
 class MCTSAgent(object):
     """Object that keeps track of MCTS tree and can perform actions"""
@@ -214,7 +221,7 @@ def play_game(start_state=GoState(),
 
         mcts(tree_root, policy_value, n_simulations)
 
-        print_tree(tree_root,0)
+        # print_tree(tree_root,0)
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
 
