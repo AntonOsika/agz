@@ -161,6 +161,36 @@ def print_tree(tree_root, level):
         print(" "*level, tree_root.choice_that_led_here, tree_root.state.state, tree_root.n, tree_root.w)
         [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
 
+class MCTSAgent(object):
+    """Object that keeps track of MCTS tree and can perform actions"""
+
+    def __init__(self, policy_value, state, n_simulations=N_SIMULATIONS):
+        self.policy_value = policy_value
+        self.game_history = list()
+        self.tree_root = TreeStructure(state)
+        self.n_simulations = n_simulations
+
+        policy, value = self.policy_value.predict(self.tree_root.state)
+        tree_root.prior_policy = policy[tree_root.state.valid_actions]
+
+    def update_state(self, choice):
+        self.game_history.append(tree_root.history_sample())
+
+        if choice in self.tree_root.children:
+            self.tree_root = self.tree_root.children[choice]
+        else:
+            new_state = step(self.tree_root.state, choice)
+            self.tree_root = TreeStructure(new_state)
+            policy, value = self.policy_value.predict(self.tree_root.state)
+            tree_root.prior_policy = policy[tree_root.state.valid_actions]
+        tree_root.parent = None
+
+    def perform_simulations(self, n_simulations=None):
+        n_simulations = n_simulations or self.n_simulations
+        mcts(self.tree_root, self.policy_value, n_simulations)
+
+    def decision(self, self_play=False):
+        return choice_to_play(self.tree_root, not self_play)
 
 # TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
@@ -170,7 +200,7 @@ def play_game(start_state=GoState(),
     """
     Plays a game against itself or specified opponent.
 
-    The state should be prepared so that it is the agents turn, 
+    The state should be prepared so that it is the agents turn,
     and so that `self.winner == 1` when the agent won.
     """
 
@@ -201,8 +231,10 @@ def play_game(start_state=GoState(),
                 tree_root = tree_root.children[choice]
             else:
                 new_state = step(tree_root.state, choice)
-                tree_root = TreeStructure(new_state, tree_root)
-                #FIXME: Should set policy here
+                tree_root = TreeStructure(new_state)
+                policy, value = policy_value.predict(tree_root.state)
+                tree_root.prior_policy = policy[tree_root.state.valid_actions]
+
             tree_root.parent = None
 
 
@@ -244,6 +276,8 @@ def self_play_visualisation(board_size=BOARD_SIZE):
     else:
         print("White won")
 
+def duel_players(player_1, player_2):
+    return winner(player_1, player_2)
 
 
 def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N_SIMULATIONS):
