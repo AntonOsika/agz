@@ -4,6 +4,7 @@ import copy
 import random
 import time
 import os
+import itertools
 
 import numpy as np
 
@@ -81,7 +82,7 @@ class TreeStructure(object):
 
     def history_sample(self):
         """Returns a representation of state to be stored for training"""
-        pi = np.zeros(self.state.action_space)
+        pi = np.zeros(self.state.action_space.n)
         pi[self.state.valid_actions] = self.n/self.n.sum()
         return [self.state, self.state.observed_state(), pi]
 
@@ -199,6 +200,26 @@ class MCTSAgent(object):
     def decision(self, self_play=False):
         return choice_to_play(self.tree_root, not self_play)
 
+
+def duel(state, agent_1, agent_2):
+    """Plays two agants against each other"""
+    history = []
+
+    agents = itertools.cycle([agent_1, agent_2])
+    while not state.game_over:
+        actor = next(agents)
+        actor.perform_simulations()
+        choice = actor.decision()
+
+        history.append(actor.tree_root.history_sample())
+
+        state.step(choice)
+        agent_1.update_state(choice)
+        agent_2.update_state(choice)
+
+    return history, state.winner
+
+
 # TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
               policy_value=NaivePolicyValue(),
@@ -282,9 +303,6 @@ def self_play_visualisation(board_size=BOARD_SIZE):
         print("Black won")
     else:
         print("White won")
-
-def duel_players(player_1, player_2):
-    return winner(player_1, player_2)
 
 
 def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N_SIMULATIONS):

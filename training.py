@@ -1,4 +1,6 @@
 from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
 
 import numpy as np
 import random
@@ -8,7 +10,8 @@ from six.moves import input
 
 import agz
 import policyvalue
-from gostate import GoState
+
+from gostate_pachi import GoState
 
 N_SIMULATIONS = 100
 
@@ -52,6 +55,8 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
                         # input("")
                     if winner == 1:
                         print("Black won")
+                    elif winner == 0:
+                        print("Tie")
                     else:
                         print("White won")
 
@@ -61,11 +66,26 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
 
                 model.train_on_batch(obs, [pi, z])
 
-            # TODO: Implement agent class and duels
-            # for i in range(eval_games):
-            #     history, winner = agz.play_game(policyvalue=model, opponent=)
+            for i in range(eval_games):
+                start_state = GoState(board_size)
+                old_agent = agz.MCTSAgent(best_model, start_state, n_simulations=n_simulations)
+                new_agent = agz.MCTSAgent(model, start_state, n_simulations=n_simulations)
 
-            best_model = model
+                if i % 2 == 0: # Play equal amounts of games as black/white
+                    history, winner = agz.duel(start_state, new_agent, old_agent)
+                    score += winner
+                else:
+                    history, winner = agz.duel(start_state, old_agent, new_agent)
+                    score -= winner
+
+                # Store history:
+                for state, obs, pi in history:
+                    memory.append([obs, pi, winner])
+
+            print("New model won {} more games than old.".format(score))
+            if score > eval_games*0.05:
+                best_model = model
+
 
         except KeyboardInterrupt:
             print("Stopped training with Ctrl-C.")

@@ -72,7 +72,7 @@ class GoState(object):
         self.winner = None
         self.action_space = spaces.Discrete(board_size**2 + 1)
 
-        self.valid_actions = list(range(board_size**2 + 1))
+        self._new_state_checks()
 
         if color == BLACK:
             self.current_player = 1
@@ -83,7 +83,14 @@ class GoState(object):
         '''
         Executes an action for the current player
         '''
-        self.board = self.board.play(_action_to_coord(self.board, action), self.color)
+
+        try:
+            self.board = self.board.play(_action_to_coord(self.board, action), self.color)
+        except pachi_py.IllegalMove:
+            # Will do pass turn on disallowed move
+            action = _pass_action(self.board_size)
+            self.board = self.board.play(_action_to_coord(self.board, action), self.color)
+
         self.color = pachi_py.stone_other(self.color)
         self.current_player = -self.current_player
 
@@ -92,6 +99,37 @@ class GoState(object):
 
         self._new_state_checks()  # Updates self.game_over and self.winner
 
+    def stateless_act(self, action):
+        '''
+        Executes an action for the current player
+        Returns:
+            a new GoState with the new board and the player switched
+        '''
+        try:
+            new_board = self.board.play(_action_to_coord(self.board, action), self.color)
+        except pachi_py.IllegalMove:
+            # Will do pass turn on invalid move
+            action = _pass_action(self.board_size)
+            new_board = self.board.play(_action_to_coord(self.board, action), self.color)
+
+        new_state = GoState(
+                board_size=self.board_size,
+                color=pachi_py.stone_other(self.color),
+                board=new_board
+                )
+
+        new_state._new_state_checks()
+
+        return new_state
+
+    def step(self, choice):
+        """Makes an action from choice of valid_actions"""
+        action = self.valid_actions[choice]
+        self.act(action)
+
+    def observed_state(self):
+        return self._observed_state
+
     def _new_state_checks(self):
         """Checks if game is over and who won"""
         self.game_over = self.board.is_terminal
@@ -99,7 +137,20 @@ class GoState(object):
         if self.game_over:
             self.winner = self._compute_winner()
 
-        # self.valid_actions = self._valid_actions()
+        encoded_board = self.board.encode()
+
+        #TODO: change input to model to include empty pos
+        self._observed_state = encoded_board[:2].transpose() 
+        self.valid_actions = self._valid_actions(encoded_board[2])
+
+    def _valid_actions(self, empty_positions):
+        actions = []
+        for action in range(self.board_size**2):
+            # coord = board.ij_to_coord(action // board.size, action % board.size)
+            if empty_positions[action // self.board.size, action % self.board.size] == 1:
+                actions.append(action)
+
+        return actions + [_pass_action(self.board_size)]
 
     def _compute_winner(self):
         """Returns winner as -1/0/1 for white/tie/black"""
@@ -107,33 +158,9 @@ class GoState(object):
         black_won = self.board.official_score < 0
         return black_won - white_won
 
-    def step(self, choice):
-        """Makes an action from choice of valid_actions"""
-        action = self.valid_actions[choice]
-        self.act(action)
-
-    def stateless_act(self, action):
-        '''
-        Executes an action for the current player
-        Returns:
-            a new GoState with the new board and the player switched
-        '''
-        new_state = GoState(
-                board_size=self.board_size,
-                color=pachi_py.stone_other(self.color),
-                board=self.board.play(_action_to_coord(self.board, action), self.color)
-                )
-
-        new_state._new_state_checks()
-
-        return new_state
-
-    def observed_state(self):
-        return self.board.encode()[:2].transpose()
-
-
     def __repr__(self):
         return 'To play: {}\n{}'.format(six.u(pachi_py.color_to_str(self.color)), self.board.__repr__().decode())
+
 
 def act(state, action):
     """Functional version of act"""
