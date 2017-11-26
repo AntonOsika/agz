@@ -93,12 +93,14 @@ def sample(probs):
     return np.random.choice(np.arange(len(probs)), p=probs.flatten())
 
 def puct_distribution(node):
+
     """Puct equation"""
     # this should never be a distribution but always maximised over?
-    logger.debug("Selecting node at move {}".format(node.move_number))
-    logger.debug(node.w)
-    logger.debug(node.n)
-    logger.debug(node.prior_policy)
+    # Took some time:
+    # logger.debug("Selecting node at move {}".format(node.move_number))
+    # logger.debug(node.w)
+    # logger.debug(node.n)
+    # logger.debug(node.prior_policy)
 
     return node.w/node.n + C_PUCT*node.prior_policy*np.sqrt(node.sum_n)/(1 + node.n)
 
@@ -179,10 +181,10 @@ class MCTSAgent(object):
         self.n_simulations = n_simulations
 
         policy, value = self.policy_value.predict(self.tree_root.state)
-        tree_root.prior_policy = policy[tree_root.state.valid_actions]
+        self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
 
     def update_state(self, choice):
-        self.game_history.append(tree_root.history_sample())
+        self.game_history.append(self.tree_root.history_sample())
 
         if choice in self.tree_root.children:
             self.tree_root = self.tree_root.children[choice]
@@ -190,8 +192,8 @@ class MCTSAgent(object):
             new_state = step(self.tree_root.state, choice)
             self.tree_root = TreeStructure(new_state)
             policy, value = self.policy_value.predict(self.tree_root.state)
-            tree_root.prior_policy = policy[tree_root.state.valid_actions]
-        tree_root.parent = None
+            self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
+        self.tree_root.parent = None
 
     def perform_simulations(self, n_simulations=None):
         n_simulations = n_simulations or self.n_simulations
@@ -201,12 +203,14 @@ class MCTSAgent(object):
         return choice_to_play(self.tree_root, not self_play)
 
 
-def duel(state, agent_1, agent_2):
+def duel(state, agent_1, agent_2, max_game_length=1e99):
     """Plays two agants against each other"""
     history = []
 
     agents = itertools.cycle([agent_1, agent_2])
-    while not state.game_over:
+
+    move_number = 0
+    while not state.game_over and move_number < max_game_length:
         actor = next(agents)
         actor.perform_simulations()
         choice = actor.decision()
@@ -217,12 +221,18 @@ def duel(state, agent_1, agent_2):
         agent_1.update_state(choice)
         agent_2.update_state(choice)
 
+        move_number += 1
+
+    if move_number >= max_game_length:
+        state.winner = state._compute_winner()
+
     return history, state.winner
 
 
 # TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
               policy_value=NaivePolicyValue(),
+              max_game_length=1e99,
               opponent=None,
               n_simulations=N_SIMULATIONS):
     """
@@ -238,7 +248,7 @@ def play_game(start_state=GoState(),
     tree_root.prior_policy = policy[tree_root.state.valid_actions]
     game_history = []
 
-    while not tree_root.state.game_over:
+    while not tree_root.state.game_over and tree_root.move_number < max_game_length:
 
         mcts(tree_root, policy_value, n_simulations)
 
@@ -265,7 +275,8 @@ def play_game(start_state=GoState(),
 
             tree_root.parent = None
 
-
+    if tree_root.move_number >= max_game_length:
+        tree_root.state.winner = tree_root.state._compute_winner()
 
     return game_history, tree_root.state.winner
 

@@ -11,6 +11,7 @@ from six.moves import input
 import agz
 import policyvalue
 
+# from gostate_pachi import GoState
 from gostate_pachi import GoState
 
 N_SIMULATIONS = 50
@@ -18,8 +19,8 @@ N_SIMULATIONS = 50
 def training_loop(policy_value_class=policyvalue.SimpleCNN,
                   board_size=5,
                   n_simulations=N_SIMULATIONS,
-                  games_per_iteration=10,
-                  train_per_iteration=100,
+                  games_per_iteration=2,
+                  train_per_iteration=1000,
                   eval_games=10,
                   batch_size=32,
                   visualise_freq=10):
@@ -28,6 +29,8 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
     # memory = np.array([memory_size] + obs_shape)
     # memory_idx = 0
     # memory_used = 0
+
+    max_game_length = 2*board_size**2
 
     input_shape = [board_size, board_size, 2]
 
@@ -43,7 +46,9 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
             for j in range(games_per_iteration):
                 history, winner = agz.play_game(start_state=GoState(board_size),
                                                 policy_value=best_model,
-                                                n_simulations=n_simulations)
+                                                n_simulations=n_simulations,
+                                                max_game_length=max_game_length)
+
 
                 for state, obs, pi in history:
                     memory.append([obs, pi, winner])
@@ -66,6 +71,7 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
 
                 model.train_on_batch(obs, [pi, z])
 
+            score = 0
             for i in range(eval_games):
                 start_state = GoState(board_size)
                 old_agent = agz.MCTSAgent(best_model, start_state, n_simulations=n_simulations)

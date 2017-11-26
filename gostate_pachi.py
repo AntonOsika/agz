@@ -65,6 +65,9 @@ class GoState(object):
         else:
             self.board = pachi_py.CreateBoard(board_size)
 
+        self.last_action = -1
+        self.last_action_2 = -1
+
         self.color = color
         self.board_size = board_size
 
@@ -94,8 +97,8 @@ class GoState(object):
         self.color = pachi_py.stone_other(self.color)
         self.current_player = -self.current_player
 
-        # self.last_action_2 = self.last_action
-        # self.last_action = pos
+        self.last_action_2 = self.last_action
+        self.last_action = action
 
         self._new_state_checks()  # Updates self.game_over and self.winner
 
@@ -118,6 +121,9 @@ class GoState(object):
                 board=new_board
                 )
 
+        new_state.last_action_2 = new_state.last_action
+        new_state.last_action = action
+
         new_state._new_state_checks()
 
         return new_state
@@ -132,7 +138,10 @@ class GoState(object):
 
     def _new_state_checks(self):
         """Checks if game is over and who won"""
-        self.game_over = self.board.is_terminal
+        double_pass = (self.last_action is _pass_action(self.board_size)) and \
+                      (self.last_action_2 is _pass_action(self.board_size))
+
+        self.game_over = self.board.is_terminal or double_pass
 
         if self.game_over:
             self.winner = self._compute_winner()
