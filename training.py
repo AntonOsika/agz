@@ -13,13 +13,13 @@ import policyvalue
 
 from gostate_pachi import GoState
 
-N_SIMULATIONS = 100
+N_SIMULATIONS = 50
 
 def training_loop(policy_value_class=policyvalue.SimpleCNN,
                   board_size=5,
                   n_simulations=N_SIMULATIONS,
                   games_per_iteration=10,
-                  train_per_iteration=10,
+                  train_per_iteration=100,
                   eval_games=10,
                   batch_size=32,
                   visualise_freq=10):
@@ -60,7 +60,7 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
                     else:
                         print("White won")
 
-            for j in range(train_per_iteration):
+            for j in range(int(train_per_iteration/batch_size)):
                 samples = [random.choice(memory) for _ in range(batch_size)]
                 obs, pi, z = [np.stack(x) for x in zip(*samples)]
 
