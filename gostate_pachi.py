@@ -171,6 +171,7 @@ class GoState(object):
         return 'To play: {}\n{}'.format(six.u(pachi_py.color_to_str(self.color)), self.board.__repr__().decode())
 
 
+
 def act(state, action):
     """Functional version of act"""
     return state.stateless_act(action)

@@ -2,10 +2,11 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 
-import numpy as np
+import copy
 import random
 import itertools
 
+import numpy as np
 from six.moves import input
 
 import agz
@@ -74,8 +75,8 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
             score = 0
             for i in range(eval_games):
                 start_state = GoState(board_size)
-                old_agent = agz.MCTSAgent(best_model, start_state, n_simulations=n_simulations)
-                new_agent = agz.MCTSAgent(model, start_state, n_simulations=n_simulations)
+                old_agent = agz.MCTSAgent(best_model, GoState(board_size), n_simulations=n_simulations)
+                new_agent = agz.MCTSAgent(model, GoState(board_size), n_simulations=n_simulations)
 
                 if i % 2 == 0: # Play equal amounts of games as black/white
                     history, winner = agz.duel(start_state, new_agent, old_agent)
