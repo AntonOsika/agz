@@ -86,6 +86,10 @@ class TreeStructure(object):
         pi[self.state.valid_actions] = self.n/self.n.sum()
         return [self.state, self.state.observed_state(), pi]
 
+    def add_noise_to_prior(self, noise_frac=0.25, dirichlet_alpha=0.03):
+        noise = np.random.dirichlet(dirichlet_alpha*np.ones(len(self.prior_policy)))
+        self.prior_policy = (1-noise_frac)*self.prior_policy + noise_frac*noise
+
 def sample(probs):
     """Sample from unnormalized probabilities"""
 
@@ -182,6 +186,7 @@ class MCTSAgent(object):
 
         policy, value = self.policy_value.predict(self.tree_root.state)
         self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
+        self.tree_root.add_noise_to_prior()
 
     def update_state(self, choice):
         self.game_history.append(self.tree_root.history_sample())
@@ -193,6 +198,7 @@ class MCTSAgent(object):
             self.tree_root = TreeStructure(new_state)
             policy, value = self.policy_value.predict(self.tree_root.state)
             self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
+        self.tree_root.add_noise_to_prior()
         self.tree_root.parent = None
 
     def perform_simulations(self, n_simulations=None):
@@ -246,6 +252,7 @@ def play_game(start_state=GoState(),
     tree_root = TreeStructure(start_state)
     policy, value = policy_value.predict(tree_root.state)
     tree_root.prior_policy = policy[tree_root.state.valid_actions]
+    tree_root.add_noise_to_prior()
     game_history = []
 
     while not tree_root.state.game_over and tree_root.move_number < max_game_length:
@@ -261,6 +268,7 @@ def play_game(start_state=GoState(),
         choice = choice_to_play(tree_root, bool(opponent))
         tree_root = tree_root.children[choice]
         tree_root.parent = None
+        tree_root.add_noise_to_prior()
 
         if opponent:
             game_history.append(tree_root.history_sample())
