@@ -69,7 +69,7 @@ class TreeStructure(object):
         self.w = np.zeros(len(state.valid_actions))
         self.n = np.zeros(len(state.valid_actions))
         self.n += (1.0 + np.random.rand(len(self.n)))*1e-10
-        self.prior_policy = 1.0
+        self.prior_policy = 1.0/len(self.state.valid_actions)
 
         self.sum_n = 1
         self.choice_that_led_here = choice_that_led_here
@@ -87,7 +87,7 @@ class TreeStructure(object):
         return [self.state, self.state.observed_state(), pi]
 
     def add_noise_to_prior(self, noise_frac=0.25, dirichlet_alpha=0.03):
-        noise = np.random.dirichlet(dirichlet_alpha*np.ones(len(self.prior_policy)))
+        noise = np.random.dirichlet(dirichlet_alpha*np.ones(len(self.state.valid_actions)))
         self.prior_policy = (1-noise_frac)*self.prior_policy + noise_frac*noise
 
 def sample(probs):
@@ -186,6 +186,7 @@ class MCTSAgent(object):
 
         policy, value = self.policy_value.predict(self.tree_root.state)
         self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
+        assert type(self.tree_root.prior_policy) != float, "Prior_policy was not np array"
         self.tree_root.add_noise_to_prior()
 
     def update_state(self, choice):
