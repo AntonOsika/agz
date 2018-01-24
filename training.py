@@ -37,6 +37,9 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
 
     memory = []
 
+    improvements = 0.0
+    duels = 0.0
+
     model = policy_value_class(input_shape)
     best_model = model
 
@@ -75,8 +78,8 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
             score = 0
             for i in range(eval_games):
                 start_state = GoState(board_size)
-                old_agent = agz.MCTSAgent(best_model, GoState(board_size), n_simulations=n_simulations)
-                new_agent = agz.MCTSAgent(model, GoState(board_size), n_simulations=n_simulations)
+                old_agent = agz.MCTSAgent(best_model, GoState(board_size), n_simulations=n_simulations, self_play=True) # FIXME: adding noise through setting self_play
+                new_agent = agz.MCTSAgent(model, GoState(board_size), n_simulations=n_simulations, self_play=True) # FIXME: adding noise through setting self_play
 
                 if i % 2 == 0: # Play equal amounts of games as black/white
                     history, winner = agz.duel(start_state, new_agent, old_agent)
@@ -92,6 +95,9 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
             print("New model won {} more games than old.".format(score))
             if score > eval_games*0.05:
                 best_model = model
+                improvements += 1
+            duels += 1
+            print("{:2f} % of games were improvements".format(100.0*improvements/duels))
 
 
         except KeyboardInterrupt:
@@ -104,7 +110,7 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
     return best_model
 
 def main(n_simulations=N_SIMULATIONS):
-    board_size = 5
+    board_size = 9
     input_shape = [board_size, board_size, 2]
     dumb_model = policyvalue.SimpleCNN(input_shape=input_shape)
     smart_model = training_loop(board_size=board_size)
