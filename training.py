@@ -1,22 +1,27 @@
 from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
 
-import numpy as np
+import copy
 import random
 import itertools
 
+import numpy as np
 from six.moves import input
 
 import agz
 import policyvalue
-from gostate import GoState
 
-N_SIMULATIONS = 100
+# from gostate_pachi import GoState
+from gostate_pachi import GoState
+
+N_SIMULATIONS = 50
 
 def training_loop(policy_value_class=policyvalue.SimpleCNN,
                   board_size=5,
                   n_simulations=N_SIMULATIONS,
-                  games_per_iteration=10,
-                  train_per_iteration=10,
+                  games_per_iteration=2,
+                  train_per_iteration=1000,
                   eval_games=10,
                   batch_size=32,
                   visualise_freq=10):
@@ -26,9 +31,14 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
     # memory_idx = 0
     # memory_used = 0
 
+    max_game_length = 2*board_size**2
+
     input_shape = [board_size, board_size, 2]
 
     memory = []
+
+    improvements = 0.0
+    duels = 0.0
 
     model = policy_value_class(input_shape)
     best_model = model
@@ -40,7 +50,9 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
             for j in range(games_per_iteration):
                 history, winner = agz.play_game(start_state=GoState(board_size),
                                                 policy_value=best_model,
-                                                n_simulations=n_simulations)
+                                                n_simulations=n_simulations,
+                                                max_game_length=max_game_length)
+
 
                 for state, obs, pi in history:
                     memory.append([obs, pi, winner])
@@ -52,20 +64,41 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
                         # input("")
                     if winner == 1:
                         print("Black won")
+                    elif winner == 0:
+                        print("Tie")
                     else:
                         print("White won")
 
-            for j in range(train_per_iteration):
+            for j in range(int(train_per_iteration/batch_size)):
                 samples = [random.choice(memory) for _ in range(batch_size)]
                 obs, pi, z = [np.stack(x) for x in zip(*samples)]
 
                 model.train_on_batch(obs, [pi, z])
 
-            # TODO: Implement agent class and duels
-            # for i in range(eval_games):
-            #     history, winner = agz.play_game(policyvalue=model, opponent=)
+            score = 0
+            for i in range(eval_games):
+                start_state = GoState(board_size)
+                old_agent = agz.MCTSAgent(best_model, GoState(board_size), n_simulations=n_simulations, self_play=True) # FIXME: adding noise through setting self_play
+                new_agent = agz.MCTSAgent(model, GoState(board_size), n_simulations=n_simulations, self_play=True) # FIXME: adding noise through setting self_play
 
-            best_model = model
+                if i % 2 == 0: # Play equal amounts of games as black/white
+                    history, winner = agz.duel(start_state, new_agent, old_agent)
+                    score += winner
+                else:
+                    history, winner = agz.duel(start_state, old_agent, new_agent)
+                    score -= winner
+
+                # Store history:
+                for state, obs, pi in history:
+                    memory.append([obs, pi, winner])
+
+            print("New model won {} more games than old.".format(score))
+            if score > eval_games*0.05:
+                best_model = model
+                improvements += 1
+            duels += 1
+            print("{:2f} % of games were improvements".format(100.0*improvements/duels))
+
 
         except KeyboardInterrupt:
             print("Stopped training with Ctrl-C.")
@@ -77,7 +110,7 @@ def training_loop(policy_value_class=policyvalue.SimpleCNN,
     return best_model
 
 def main(n_simulations=N_SIMULATIONS):
-    board_size = 5
+    board_size = 9
     input_shape = [board_size, board_size, 2]
     dumb_model = policyvalue.SimpleCNN(input_shape=input_shape)
     smart_model = training_loop(board_size=board_size)

@@ -22,8 +22,8 @@ class SimpleCNN(ResNet):
     """
     def __init__(self, input_shape):
         super(SimpleCNN, self).__init__(input_shape=input_shape,
-                n_filter=8,
-                n_blocks=1)
+                n_filter=256,
+                n_blocks=20)
 
         self.compile()
 

@@ -66,6 +66,6 @@ class ResNet(object):
 
 
 if __name__ == '__main__':
-    resnet = ResNet((19,19, 17), n_blocks=20)
+    resnet = ResNet((19, 19, 17), n_blocks=20)
     resnet.model.summary()
     resnet.compile()

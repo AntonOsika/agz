@@ -3,18 +3,26 @@ import sys
 import copy
 import random
 import time
+import os
+import itertools
 
 import numpy as np
 
 from six.moves import input
 
+"""
 from gostate import GoState
+"""
+from gostate_pachi import GoState
+from gostate_pachi import step
 
 from policyvalue import NaivePolicyValue
 from policyvalue import SimpleCNN
 
 # import tqdm
 
+#The following is used when GPU memory is full FIXME
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
 BOARD_SIZE = 5
 C_PUCT = 1.0
@@ -40,14 +48,14 @@ logger = logging.getLogger(__name__)
 np.set_printoptions(3)
 
 
-
-def step(state, choice):
-    """Functional stateless version of env.step() """
-    t0 = time.time()
-    new_state = copy.deepcopy(state)
-    logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
-    new_state.step(choice)
-    return new_state
+if 'step' not in globals():
+    def step(state, choice):
+        """Functional stateless version of env.step() """
+        t0 = time.time()
+        new_state = copy.deepcopy(state)
+        logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
+        new_state.step(choice)
+        return new_state
 
 
 class TreeStructure(object):
@@ -61,7 +69,7 @@ class TreeStructure(object):
         self.w = np.zeros(len(state.valid_actions))
         self.n = np.zeros(len(state.valid_actions))
         self.n += (1.0 + np.random.rand(len(self.n)))*1e-10
-        self.prior_policy = 1.0
+        self.prior_policy = 1.0/len(self.state.valid_actions)
 
         self.sum_n = 1
         self.choice_that_led_here = choice_that_led_here
@@ -73,9 +81,14 @@ class TreeStructure(object):
 
 
     def history_sample(self):
-        pi = np.zeros(self.state.action_space)
+        """Returns a representation of state to be stored for training"""
+        pi = np.zeros(self.state.action_space.n)
         pi[self.state.valid_actions] = self.n/self.n.sum()
         return [self.state, self.state.observed_state(), pi]
+
+    def add_noise_to_prior(self, noise_frac=0.25, dirichlet_alpha=0.03):
+        noise = np.random.dirichlet(dirichlet_alpha*np.ones(len(self.state.valid_actions)))
+        self.prior_policy = (1-noise_frac)*self.prior_policy + noise_frac*noise
 
 def sample(probs):
     """Sample from unnormalized probabilities"""
@@ -84,12 +97,14 @@ def sample(probs):
     return np.random.choice(np.arange(len(probs)), p=probs.flatten())
 
 def puct_distribution(node):
+
     """Puct equation"""
     # this should never be a distribution but always maximised over?
-    logger.debug("Selecting node at move {}".format(node.move_number))
-    logger.debug(node.w)
-    logger.debug(node.n)
-    logger.debug(node.prior_policy)
+    # Took some time:
+    # logger.debug("Selecting node at move {}".format(node.move_number))
+    # logger.debug(node.w)
+    # logger.debug(node.n)
+    # logger.debug(node.prior_policy)
 
     return node.w/node.n + C_PUCT*node.prior_policy*np.sqrt(node.sum_n)/(1 + node.n)
 
@@ -157,9 +172,68 @@ def mcts(tree_root, policy_value, n_simulations):
 
 
 def print_tree(tree_root, level):
-    if logger.level > 2:
-        print(" "*level, tree_root.choice_that_led_here, tree_root.state.state, tree_root.n, tree_root.w)
-        [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
+    print(" "*level, tree_root.choice_that_led_here, tree_root.state.board, tree_root.n, tree_root.w)
+        # [print_tree(tree_root.children[i], level + 1) for i in tree_root.children]
+
+class MCTSAgent(object):
+    """Object that keeps track of MCTS tree and can perform actions"""
+
+    def __init__(self, policy_value, state, n_simulations=N_SIMULATIONS):
+        self.policy_value = policy_value
+        self.game_history = list()
+        self.tree_root = TreeStructure(state)
+        self.n_simulations = n_simulations
+
+        policy, value = self.policy_value.predict(self.tree_root.state)
+        self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
+        assert type(self.tree_root.prior_policy) != float, "Prior_policy was not np array"
+        self.tree_root.add_noise_to_prior()
+
+    def update_state(self, choice):
+        self.game_history.append(self.tree_root.history_sample())
+
+        if choice in self.tree_root.children:
+            self.tree_root = self.tree_root.children[choice]
+        else:
+            new_state = step(self.tree_root.state, choice)
+            self.tree_root = TreeStructure(new_state)
+            policy, value = self.policy_value.predict(self.tree_root.state)
+            self.tree_root.prior_policy = policy[self.tree_root.state.valid_actions]
+        self.tree_root.add_noise_to_prior()
+        self.tree_root.parent = None
+
+    def perform_simulations(self, n_simulations=None):
+        n_simulations = n_simulations or self.n_simulations
+        mcts(self.tree_root, self.policy_value, n_simulations)
+
+    def decision(self, self_play=False):
+        return choice_to_play(self.tree_root, not self_play)
+
+
+def duel(state, agent_1, agent_2, max_game_length=1e99):
+    """Plays two agants against each other"""
+    history = []
+
+    agents = itertools.cycle([agent_1, agent_2])
+
+    move_number = 0
+    while not state.game_over and move_number < max_game_length:
+        actor = next(agents)
+        actor.perform_simulations()
+        choice = actor.decision()
+
+        history.append(actor.tree_root.history_sample())
+
+        state.step(choice)
+        agent_1.update_state(choice)
+        agent_2.update_state(choice)
+
+        move_number += 1
+
+    if move_number >= max_game_length:
+        state.winner = state._compute_winner()
+
+    return history, state.winner
 
 class MCTSAgent(object):
     """Object that keeps track of MCTS tree and can perform actions"""
@@ -195,6 +269,7 @@ class MCTSAgent(object):
 # TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
               policy_value=NaivePolicyValue(),
+              max_game_length=1e99,
               opponent=None,
               n_simulations=N_SIMULATIONS):
     """
@@ -208,13 +283,14 @@ def play_game(start_state=GoState(),
     tree_root = TreeStructure(start_state)
     policy, value = policy_value.predict(tree_root.state)
     tree_root.prior_policy = policy[tree_root.state.valid_actions]
+    tree_root.add_noise_to_prior()
     game_history = []
 
-    while not tree_root.state.game_over:
+    while not tree_root.state.game_over and tree_root.move_number < max_game_length:
 
         mcts(tree_root, policy_value, n_simulations)
 
-        print_tree(tree_root,0)
+        # print_tree(tree_root,0)
         # Store the state and distribution before we prune the tree:
         # TODO: Refactor this
 
@@ -223,6 +299,7 @@ def play_game(start_state=GoState(),
         choice = choice_to_play(tree_root, bool(opponent))
         tree_root = tree_root.children[choice]
         tree_root.parent = None
+        tree_root.add_noise_to_prior()
 
         if opponent:
             game_history.append(tree_root.history_sample())
@@ -234,10 +311,10 @@ def play_game(start_state=GoState(),
                 tree_root = TreeStructure(new_state)
                 policy, value = policy_value.predict(tree_root.state)
                 tree_root.prior_policy = policy[tree_root.state.valid_actions]
-
             tree_root.parent = None
 
-
+    if tree_root.move_number >= max_game_length:
+        tree_root.state.winner = tree_root.state._compute_winner()
 
     return game_history, tree_root.state.winner
 
@@ -279,7 +356,6 @@ def self_play_visualisation(board_size=BOARD_SIZE):
 def duel_players(player_1, player_2):
     return winner(player_1, player_2)
 
-
 def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N_SIMULATIONS):
 
     if "-selfplay" in sys.argv:
@@ -314,4 +390,3 @@ def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N
         print("Human won")
 
 if __name__ == "__main__":
-    main()

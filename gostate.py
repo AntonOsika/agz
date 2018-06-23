@@ -107,5 +107,3 @@ class GoState(GoBoard):
 
         return board
 
-
-
