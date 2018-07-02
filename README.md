@@ -23,11 +23,11 @@ python agz.py
 ```
 
 ## Todo
-- Implement random reflections of board (mcts kind of ruins things now)
-- Tune how much time is spend exploring / training (c.f. AGZ paper)
-- Parallelize training and simulation.
-- Use code from `agz.play_game` to create `MCTSAgent` class 
-- Use same logic this on other environments
-- Learn the transition dynamics of step(state, action)
+[ ] Implement random reflections of board
+[ ] Tune how much time is spend exploring / training (c.f. AGZ paper)
+[ ] Parallelize training and simulation.
+[ ] Use code from `agz.play_game` to create `MCTSAgent` class 
+[ ] Use same model on other environments
+[ ] Learn the transition dynamics of step(state, action)
 
-(`MCTSAgent` should probably implement `.update_state` and `.decision` methods)
+(Refactor `MCTSAgent` to implement `.update_state` and `.decision` methods)
