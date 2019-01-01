@@ -24,7 +24,7 @@ class GoState(GoBoard):
     .valid_actions
 
 
-    TODO: Replace go engine code / do something smart so that checking valid states does not require a deepcopy.
+    TODO: Replace go engine code so that checking valid states does not require a deepcopy.
 
     """
 
@@ -33,7 +33,7 @@ class GoState(GoBoard):
 
         self.game_over = False
         self.winner = None
-        self.current_player = 'b'  # TODO represent this with (1, -1) would be faster
+        self.current_player = 'b'
         self.action_space = board_size**2 + 1
         self.valid_actions = self._valid_actions()
 

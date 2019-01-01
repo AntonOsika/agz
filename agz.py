@@ -21,9 +21,6 @@ from policyvalue import SimpleCNN
 
 # import tqdm
 
-#The following is used when GPU memory is full FIXME
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
 BOARD_SIZE = 5
 C_PUCT = 1.0
 N_SIMULATIONS = 160
@@ -365,6 +362,10 @@ def main(policy_value=NaivePolicyValue(), board_size=BOARD_SIZE, n_simulations=N
     if "-40" in sys.argv:
         n_simulations = 40
         print("Letting MCTS search for {} moves!".format(n_simulations))
+
+    if '-nogpu' in sys.argv:
+        # The following is neecessary if GPU memory is full (training)
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
     # Loads weights that trained for 60 iterations
     policy_value = SimpleCNN([board_size, board_size, 2])
