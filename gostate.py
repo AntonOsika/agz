@@ -107,3 +107,12 @@ class GoState(GoBoard):
 
         return board
 
+def step(state, choice):
+    """Functional stateless version of env.step() """
+    t0 = time.time()
+    new_state = copy.deepcopy(state)
+    logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
+    new_state.step(choice)
+    return new_state
+
+

@@ -10,7 +10,7 @@ import numpy as np
 
 from six.moves import input
 
-"""
+""" Slower but more hackable go implementation:
 from gostate import GoState
 """
 from gostate_pachi import GoState
@@ -28,12 +28,12 @@ N_SIMULATIONS = 160
 """
 MCTS logic and go playing / visualisation.
 
-TODO/fix:
+TODO:
 - Decide on CLI arguments and use argparse
 
 """
 
-# '-d level' argument for printing specific level:
+# '-d level' argument for printing specific debug level:
 if "-d" in sys.argv:
     level_idx = sys.argv.index("-d") + 1
     level = int(sys.argv[level_idx]) if level_idx < len(sys.argv) else 10
@@ -45,17 +45,8 @@ logger = logging.getLogger(__name__)
 np.set_printoptions(3)
 
 
-if 'step' not in globals():
-    def step(state, choice):
-        """Functional stateless version of env.step() """
-        t0 = time.time()
-        new_state = copy.deepcopy(state)
-        logger.log(6, "took {} to deepcopy \n{}".format(time.time()-t0, state) )
-        new_state.step(choice)
-        return new_state
-
-
 class TreeStructure(object):
+""" Node in the MCTS tree structure """
     def __init__(self, state, parent=None, choice_that_led_here=None):
 
         self.children = {}  # map from choice to node
@@ -96,12 +87,7 @@ def sample(probs):
 def puct_distribution(node):
 
     """Puct equation"""
-    # this should never be a distribution but always maximised over?
-    # Took some time:
-    # logger.debug("Selecting node at move {}".format(node.move_number))
-    # logger.debug(node.w)
-    # logger.debug(node.n)
-    # logger.debug(node.prior_policy)
+    # this should never be a distribution but always maximised over
 
     return node.w/node.n + C_PUCT*node.prior_policy*np.sqrt(node.sum_n)/(1 + node.n)
 
@@ -111,7 +97,7 @@ def puct_choice(node):
 
 
 def choice_to_play(node, opponent=None):
-    """Samples a move if beginning of self play game."""
+    """Samples a move if self play training."""
     logger.debug("Selecting move # {}".format(node.move_number))
     logger.debug(node.w)
     logger.debug(node.n)
@@ -160,7 +146,7 @@ def mcts(tree_root, policy_value, n_simulations):
         node = node.children[choice]
 
         if new_state.game_over:
-            value = new_state.winner  # Probably look at the depth to see who won here?
+            value = new_state.winner
         else:
             policy, value = policy_value.predict(node.state)
             node.prior_policy = policy[node.state.valid_actions]
@@ -232,36 +218,6 @@ def duel(state, agent_1, agent_2, max_game_length=1e99):
 
     return history, state.winner
 
-class MCTSAgent(object):
-    """Object that keeps track of MCTS tree and can perform actions"""
-
-    def __init__(self, policy_value, state, n_simulations=N_SIMULATIONS):
-        self.policy_value = policy_value
-        self.game_history = list()
-        self.tree_root = TreeStructure(state)
-        self.n_simulations = n_simulations
-
-        policy, value = self.policy_value.predict(self.tree_root.state)
-        tree_root.prior_policy = policy[tree_root.state.valid_actions]
-
-    def update_state(self, choice):
-        self.game_history.append(tree_root.history_sample())
-
-        if choice in self.tree_root.children:
-            self.tree_root = self.tree_root.children[choice]
-        else:
-            new_state = step(self.tree_root.state, choice)
-            self.tree_root = TreeStructure(new_state)
-            policy, value = self.policy_value.predict(self.tree_root.state)
-            tree_root.prior_policy = policy[tree_root.state.valid_actions]
-        tree_root.parent = None
-
-    def perform_simulations(self, n_simulations=None):
-        n_simulations = n_simulations or self.n_simulations
-        mcts(self.tree_root, self.policy_value, n_simulations)
-
-    def decision(self, self_play=False):
-        return choice_to_play(self.tree_root, not self_play)
 
 # TODO: Create agent class from this that can be queried
 def play_game(start_state=GoState(),
