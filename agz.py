@@ -134,7 +134,7 @@ def mcts(tree_root, policy_value, n_simulations):
             choice = puct_choice(node)
 
         if node.state.game_over:
-            # This only happens the second time we go to a winning state.
+            # This happens the 'second time' we go to a winning state.
             # Logic for visiting "winning nodes" multiple times is probably correct?
             value = node.state.winner
             backpropagate(node, value)
