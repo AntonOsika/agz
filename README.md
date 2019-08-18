@@ -33,5 +33,4 @@ python agz.py
 - [ ] Use code from `agz.play_game` to create `MCTSAgent` class 
 - [ ] Use same model on other environments
 - [ ] Learn the transition dynamics of step(state, action)
-
-(Refactor `MCTSAgent` to implement `.update_state` and `.decision` methods)
+- [ ] Refactor `MCTSAgent` to implement `.update_state` and `.decision` methods
